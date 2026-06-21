@@ -1,11 +1,9 @@
-import type { GeminiSituationResult, SituationPack, ConversationItem } from '../types/index';
+import type { GeminiSituationResult, SituationPack } from '../types/index';
 import { searchSituation, ThrottleError } from '../services/ai';
-import { loadSettings, addSituationPack, addPhraseItem, phraseExists, findSimilarPhrases } from '../services/storage';
-import { showSimilarPhraseDialog } from '../components/confirmDialog';
+import { loadSettings, addSituationPack, loadSituations } from '../services/storage';
 import { speak } from '../services/speech';
 import { showToast } from '../components/toast';
 import { renderDialogue } from '../components/dialogueDisplay';
-import { mapLegacyTag, ALL_PREDEFINED_TAGS } from '../constants/tags';
 
 interface SituationCategory {
   icon: string;
@@ -180,7 +178,6 @@ function renderSituationResult(result: GeminiSituationResult, output: HTMLElemen
       <div class="situation-pack-card">
         <div class="situation-pack-header">
           <span style="font-size:15px;font-weight:700">🔑 關鍵表達（${result.keyPhrases.length} 個）</span>
-          <button id="save-all-phrases-btn" class="btn btn-secondary btn-sm">全部加入收藏</button>
         </div>
         <div class="situation-pack-body" style="padding-top:16px">
           <div class="situation-key-phrases" id="key-phrases-list"></div>
@@ -193,43 +190,33 @@ function renderSituationResult(result: GeminiSituationResult, output: HTMLElemen
   const dialogueEl = output.querySelector<HTMLElement>('#sample-dialogue')!;
   dialogueEl.appendChild(renderDialogue(result.sampleDialogue));
 
-  // Render key phrases
+  // Render key phrases (read-only — no save buttons)
   const phrasesList = output.querySelector<HTMLElement>('#key-phrases-list')!;
-  result.keyPhrases.forEach((phrase, idx) => {
-    const alreadySaved = phraseExists(phrase.phrase);
+  result.keyPhrases.forEach((phrase) => {
     const item = document.createElement('div');
     item.className = 'situation-phrase-item';
-    item.dataset.idx = String(idx);
 
     item.innerHTML = `
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
-        <div style="flex:1">
-          <div class="situation-phrase-en">
-            ${esc(phrase.phrase)}
-            <button class="btn-icon speak-btn" style="width:22px;height:22px;font-size:13px;display:inline-flex;vertical-align:middle" data-text="${esc(phrase.phrase)}" title="朗讀">🔊</button>
-          </div>
-          <div class="situation-phrase-zh">${esc(phrase.translation)}</div>
-          ${phrase.usage ? `<div class="situation-phrase-usage">${esc(phrase.usage)}</div>` : ''}
-          ${phrase.alternatives.length ? `
-            <div style="margin-top:6px">
-              <span style="font-size:11px;color:var(--text-muted)">替換說法：</span>
-              <div class="situation-phrase-alts">
-                ${phrase.alternatives.map((a) => `
-                  <span class="situation-alt-chip" data-text="${esc(a.expression)}" title="${esc(a.nuanceDifference)}">
-                    ${esc(a.expression)}
-                  </span>
-                `).join('')}
-              </div>
-            </div>
-          ` : ''}
-        </div>
-        <button class="btn btn-sm btn-secondary save-phrase-btn" data-idx="${idx}" ${alreadySaved ? 'disabled' : ''} style="flex-shrink:0">
-          ${alreadySaved ? '✅' : '+ 收藏'}
-        </button>
+      <div class="situation-phrase-en">
+        ${esc(phrase.phrase)}
+        <button class="btn-icon speak-btn" style="width:22px;height:22px;font-size:13px;display:inline-flex;vertical-align:middle" data-text="${esc(phrase.phrase)}" title="朗讀">🔊</button>
       </div>
+      <div class="situation-phrase-zh">${esc(phrase.translation)}</div>
+      ${phrase.usage ? `<div class="situation-phrase-usage">${esc(phrase.usage)}</div>` : ''}
+      ${phrase.alternatives.length ? `
+        <div style="margin-top:6px">
+          <span style="font-size:11px;color:var(--text-muted)">替換說法：</span>
+          <div class="situation-phrase-alts">
+            ${phrase.alternatives.map((a) => `
+              <span class="situation-alt-chip" data-text="${esc(a.expression)}" title="${esc(a.nuanceDifference)}">
+                ${esc(a.expression)}
+              </span>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
     `;
 
-    // Speak events
     item.querySelector('.speak-btn')?.addEventListener('click', (e) => {
       e.stopPropagation();
       speak((e.currentTarget as HTMLElement).dataset.text ?? '');
@@ -238,28 +225,22 @@ function renderSituationResult(result: GeminiSituationResult, output: HTMLElemen
       chip.addEventListener('click', () => speak((chip as HTMLElement).dataset.text ?? ''));
     });
 
-    // Save individual phrase
-    item.querySelector('.save-phrase-btn')?.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const btn = e.currentTarget as HTMLButtonElement;
-
-      const similars = findSimilarPhrases(phrase.phrase);
-      if (similars.length > 0) {
-        const confirmed = await showSimilarPhraseDialog(phrase.phrase, similars);
-        if (!confirmed) return;
-      }
-
-      saveIndividualPhrase(phrase, result.situationName, result.tags);
-      btn.textContent = '✅';
-      btn.disabled = true;
-    });
-
     phrasesList.appendChild(item);
   });
 
   // Save pack button
   output.querySelector('#save-pack-btn')?.addEventListener('click', () => {
     if (!currentResult) return;
+
+    // Check if already saved (by name)
+    const alreadySaved = loadSituations().some(
+      (s) => s.situationName === currentResult!.situationName
+    );
+    if (alreadySaved) {
+      showToast('此情境包已在收藏庫中', 'info');
+      return;
+    }
+
     const pack: SituationPack = {
       id: `sit_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       situationName: currentResult.situationName,
@@ -271,85 +252,10 @@ function renderSituationResult(result: GeminiSituationResult, output: HTMLElemen
       tags: currentResult.tags,
     };
     addSituationPack(pack);
-    showToast(`已儲存情境包「${pack.situationName}」`, 'success');
+    showToast(`已儲存情境包「${pack.situationName}」到收藏庫`, 'success');
     const btn = output.querySelector<HTMLButtonElement>('#save-pack-btn')!;
     btn.textContent = '✅ 已儲存';
     btn.disabled = true;
   });
-
-  // Save all phrases button (bulk — skip similar silently, only block exact duplicates)
-  output.querySelector('#save-all-phrases-btn')?.addEventListener('click', async () => {
-    if (!currentResult) return;
-
-    // Collect phrases with similarities (not exact duplicates)
-    const withSimilars = currentResult.keyPhrases.filter(
-      (p) => !phraseExists(p.phrase) && findSimilarPhrases(p.phrase).length > 0
-    );
-
-    if (withSimilars.length > 0) {
-      const allSimilars = withSimilars.flatMap((p) => findSimilarPhrases(p.phrase));
-      const unique = allSimilars.filter(
-        (s, i, arr) => arr.findIndex((x) => x.item.id === s.item.id) === i
-      );
-      const confirmed = await showSimilarPhraseDialog(
-        withSimilars.map((p) => p.phrase).join('、'),
-        unique
-      );
-      if (!confirmed) return;
-    }
-
-    let savedCount = 0;
-    currentResult.keyPhrases.forEach((phrase) => {
-      if (!phraseExists(phrase.phrase)) {
-        saveIndividualPhrase(phrase, currentResult!.situationName, currentResult!.tags);
-        savedCount++;
-      }
-    });
-    showToast(`已加入 ${savedCount} 個表達到收藏`, 'success');
-    output.querySelectorAll('.save-phrase-btn').forEach((btn) => {
-      (btn as HTMLButtonElement).textContent = '✅';
-      (btn as HTMLButtonElement).disabled = true;
-    });
-  });
 }
 
-function saveIndividualPhrase(
-  phrase: GeminiSituationResult['keyPhrases'][0],
-  situationName: string,
-  packTags: string[]
-): void {
-  // Merge pack tags + try to map situationName to a predefined tag
-  const situationMapped = mapLegacyTag(situationName);
-  const mergedRaw = situationMapped
-    ? [situationMapped, ...packTags]
-    : packTags;
-
-  // Deduplicate and keep only predefined tags, max 4
-  const cleanTags = Array.from(new Set(mergedRaw))
-    .filter((t) => ALL_PREDEFINED_TAGS.includes(t))
-    .slice(0, 4);
-
-  const item: ConversationItem = {
-    id: `phrase_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    phrase: phrase.phrase,
-    translation: phrase.translation,
-    type: 'expression',
-    formalityLevel: 'neutral',
-    usageNotes: phrase.usage,
-    dialogueExample: {
-      contextDescription: `來源：${situationName} 情境`,
-      lines: [],
-    },
-    alternativeExpressions: phrase.alternatives.map((a) => ({
-      expression: a.expression,
-      nuanceDifference: a.nuanceDifference,
-      formalityLevel: a.formalityLevel,
-    })),
-    situationTags: [],
-    tags: cleanTags,
-    isPinned: false,
-    masteryLevel: 'unfamiliar',
-    createdAt: Date.now(),
-  };
-  addPhraseItem(item);
-}
