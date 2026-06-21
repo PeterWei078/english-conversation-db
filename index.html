@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-TW" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>英文會話學習資料庫</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💬</text></svg>" />
+  <link rel="stylesheet" href="/src/styles/variables.css" />
+  <link rel="stylesheet" href="/src/styles/base.css" />
+  <link rel="stylesheet" href="/src/styles/layout.css" />
+  <link rel="stylesheet" href="/src/styles/components.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Navigation -->
+    <nav class="nav-bar">
+      <div class="nav-brand">
+        <span class="nav-logo">💬</span>
+        <span class="nav-title">英文會話庫</span>
+      </div>
+      <div class="nav-tabs">
+        <a href="#lookup" class="nav-tab" data-page="lookup">
+          <span class="nav-tab-icon">🔍</span>
+          <span class="nav-tab-label">查詢</span>
+        </a>
+        <a href="#analyze" class="nav-tab" data-page="analyze">
+          <span class="nav-tab-icon">📄</span>
+          <span class="nav-tab-label">分析</span>
+        </a>
+        <a href="#situation" class="nav-tab" data-page="situation">
+          <span class="nav-tab-icon">🗺️</span>
+          <span class="nav-tab-label">情境</span>
+        </a>
+        <a href="#collection" class="nav-tab" data-page="collection">
+          <span class="nav-tab-icon">📚</span>
+          <span class="nav-tab-label">收藏</span>
+        </a>
+        <a href="#quiz" class="nav-tab" data-page="quiz">
+          <span class="nav-tab-icon">🃏</span>
+          <span class="nav-tab-label">測驗</span>
+        </a>
+        <a href="#settings" class="nav-tab" data-page="settings">
+          <span class="nav-tab-icon">⚙️</span>
+          <span class="nav-tab-label">設定</span>
+        </a>
+      </div>
+      <button id="theme-toggle" class="btn-icon" title="切換主題" aria-label="切換深色/淺色模式">
+        <span id="theme-icon">🌙</span>
+      </button>
+    </nav>
+
+    <!-- Page Container -->
+    <main id="page-container" class="page-container">
+    </main>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
