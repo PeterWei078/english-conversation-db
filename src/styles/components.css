@@ -435,6 +435,23 @@
 .already-saved-badge { font-size: 11px; color: var(--success); white-space: nowrap; writing-mode: vertical-rl; transform: rotate(180deg); }
 .analyze-card-body { flex: 1; min-width: 0; }
 
+/* ── Situation count badge ── */
+.sit-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 999px;
+  line-height: 1;
+  margin-left: 4px;
+}
+
 /* ── Situation search output ── */
 .situation-result-wrap { display: flex; flex-direction: column; gap: 16px; margin-top: 20px; }
 
