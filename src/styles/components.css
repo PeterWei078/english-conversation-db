@@ -461,20 +461,15 @@
 }
 
 .cat-picker-popover {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 60;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   padding: 8px;
-  min-width: 180px;
-  max-width: 240px;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  /* position/size set via inline style when mounted to body */
 }
 
 .cat-picker-option {

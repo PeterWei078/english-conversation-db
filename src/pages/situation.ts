@@ -244,11 +244,29 @@ function mountCategoryPicker(
 
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      // Close any open popovers
       document.querySelectorAll('.cat-picker-popover').forEach((p) => p.remove());
 
       const pop = document.createElement('div');
       pop.className = 'cat-picker-popover';
+
+      // Position relative to viewport (escapes any overflow:hidden parent)
+      const rect = btn.getBoundingClientRect();
+      const popWidth = 200;
+      const spaceBelow = window.innerHeight - rect.bottom - 8;
+      const spaceAbove = rect.top - 8;
+      const openUpward = spaceBelow < 240 && spaceAbove > spaceBelow;
+
+      pop.style.cssText = `
+        position: fixed;
+        left: ${Math.min(rect.left, window.innerWidth - popWidth - 8)}px;
+        ${openUpward
+          ? `bottom: ${window.innerHeight - rect.top + 4}px;`
+          : `top: ${rect.bottom + 4}px;`}
+        width: ${popWidth}px;
+        max-height: 280px;
+        overflow-y: auto;
+        z-index: 1000;
+      `;
 
       CATEGORIES.forEach((cat) => {
         const opt = document.createElement('button');
@@ -260,9 +278,7 @@ function mountCategoryPicker(
           pack.category = cat.label;
           pop.remove();
           renderBtn(cat.label);
-          // Refresh filters counts
           refreshFilters(container);
-          // If current filter no longer matches, refresh packs list
           if (currentFilter !== null && currentFilter !== cat.label) {
             renderPacksList(container);
           }
@@ -270,9 +286,10 @@ function mountCategoryPicker(
         pop.appendChild(opt);
       });
 
-      wrap.appendChild(pop);
+      document.body.appendChild(pop);
+
       const close = (ev: MouseEvent) => {
-        if (!pop.contains(ev.target as Node)) {
+        if (!pop.contains(ev.target as Node) && ev.target !== btn) {
           pop.remove();
           document.removeEventListener('click', close);
         }
