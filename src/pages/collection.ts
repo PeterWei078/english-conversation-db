@@ -8,6 +8,7 @@ import { renderPhraseCard } from '../components/phraseCard';
 import { renderDialogue } from '../components/dialogueDisplay';
 import { speak } from '../services/speech';
 import { showToast } from '../components/toast';
+import { TAG_GROUPS, ALL_PREDEFINED_TAGS } from '../constants/tags';
 
 let currentTab: CollectionTab = 'phrases';
 let currentSort: SortMode = 'newest';
@@ -68,9 +69,8 @@ function renderPhrasesTab(container: HTMLElement): void {
   const content = container.querySelector<HTMLElement>('#collection-content')!;
   const allPhrases = loadPhrases();
 
-  // Collect all unique situation tags and tags
+  // Collect all unique situation tags
   const allSituationTags = Array.from(new Set(allPhrases.flatMap((p) => p.situationTags)));
-  const allTags = Array.from(new Set(allPhrases.flatMap((p) => p.tags)));
 
   const counts = {
     total: allPhrases.length,
@@ -109,18 +109,13 @@ function renderPhrasesTab(container: HTMLElement): void {
       <div style="font-size:13px;color:var(--text-muted)" id="filter-count"></div>
     </div>
 
-    <!-- Tag filter chips -->
-    ${allTags.length ? `
-      <div class="tag-filter-row">
-        <span class="tag" style="cursor:pointer;${!currentTagFilter ? 'background:var(--accent-light);color:var(--accent-text);border-color:var(--accent)' : ''}"
-          data-tag-filter="">全部</span>
-        ${allTags.map((t) => `<span class="tag" style="cursor:pointer;${currentTagFilter === t ? 'background:var(--accent-light);color:var(--accent-text);border-color:var(--accent)' : ''}" data-tag-filter="${esc(t)}">${esc(t)}</span>`).join('')}
-      </div>
-    ` : ''}
+    <!-- Tag filter: grouped by category -->
+    <div id="tag-filter-groups-wrap"></div>
 
     <div class="phrase-grid" id="phrase-grid"></div>
   `;
 
+  renderGroupedTagFilters(content, allPhrases);
   renderPhraseGrid(content, allPhrases);
 
   // Sort change
@@ -134,17 +129,99 @@ function renderPhrasesTab(container: HTMLElement): void {
     currentSituationFilter = (e.target as HTMLSelectElement).value;
     renderPhraseGrid(content, loadPhrases());
   });
+}
 
-  // Tag filter chips
-  content.querySelectorAll('[data-tag-filter]').forEach((chip) => {
+function renderGroupedTagFilters(content: HTMLElement, allPhrases: ConversationItem[]): void {
+  const wrap = content.querySelector<HTMLElement>('#tag-filter-groups-wrap')!;
+  // Only show tags that exist in the current collection
+  const usedTags = new Set(allPhrases.flatMap((p) => p.tags));
+  // Also include any non-predefined legacy tags
+  const legacyTags = [...usedTags].filter((t) => !ALL_PREDEFINED_TAGS.includes(t));
+
+  // Build groups: only show groups that have at least one used tag
+  const activeGroups = TAG_GROUPS.map((g) => ({
+    ...g,
+    tags: g.tags.filter((t) => usedTags.has(t)),
+  })).filter((g) => g.tags.length > 0);
+
+  if (activeGroups.length === 0 && legacyTags.length === 0) {
+    wrap.innerHTML = '';
+    return;
+  }
+
+  wrap.innerHTML = '';
+
+  const groupsWrap = document.createElement('div');
+  groupsWrap.className = 'tag-filter-groups';
+
+  const allRow = document.createElement('div');
+  allRow.className = 'tag-filter-group';
+
+  const allChipsWrap = document.createElement('div');
+  allChipsWrap.className = 'tag-filter-chips';
+
+  const allChip = document.createElement('span');
+  allChip.className = 'tag tag-filter-chip';
+  allChip.textContent = '全部';
+  allChip.dataset.tagFilter = '';
+  if (!currentTagFilter) allChip.classList.add('active-filter');
+  allChipsWrap.appendChild(allChip);
+  allRow.appendChild(allChipsWrap);
+  groupsWrap.appendChild(allRow);
+
+  activeGroups.forEach((group) => {
+    const row = document.createElement('div');
+    row.className = 'tag-filter-group';
+
+    const label = document.createElement('span');
+    label.className = 'tag-filter-group-label';
+    label.textContent = group.icon;
+    row.appendChild(label);
+
+    const chips = document.createElement('div');
+    chips.className = 'tag-filter-chips';
+    group.tags.forEach((tag) => {
+      const chip = document.createElement('span');
+      chip.className = 'tag tag-filter-chip';
+      chip.textContent = tag;
+      chip.dataset.tagFilter = tag;
+      if (currentTagFilter === tag) chip.classList.add('active-filter');
+      chips.appendChild(chip);
+    });
+    row.appendChild(chips);
+    groupsWrap.appendChild(row);
+  });
+
+  // Legacy tags (miscellaneous)
+  if (legacyTags.length > 0) {
+    const row = document.createElement('div');
+    row.className = 'tag-filter-group';
+    const label = document.createElement('span');
+    label.className = 'tag-filter-group-label';
+    label.textContent = '…';
+    row.appendChild(label);
+    const chips = document.createElement('div');
+    chips.className = 'tag-filter-chips';
+    legacyTags.forEach((tag) => {
+      const chip = document.createElement('span');
+      chip.className = 'tag tag-filter-chip';
+      chip.textContent = tag;
+      chip.dataset.tagFilter = tag;
+      if (currentTagFilter === tag) chip.classList.add('active-filter');
+      chips.appendChild(chip);
+    });
+    row.appendChild(chips);
+    groupsWrap.appendChild(row);
+  }
+
+  wrap.appendChild(groupsWrap);
+
+  // Bind click events
+  wrap.querySelectorAll('.tag-filter-chip').forEach((chip) => {
     chip.addEventListener('click', () => {
       currentTagFilter = (chip as HTMLElement).dataset.tagFilter ?? '';
-      content.querySelectorAll('[data-tag-filter]').forEach((c) => {
-        const active = (c as HTMLElement).dataset.tagFilter === currentTagFilter;
-        (c as HTMLElement).style.background = active ? 'var(--accent-light)' : '';
-        (c as HTMLElement).style.color = active ? 'var(--accent-text)' : '';
-        (c as HTMLElement).style.borderColor = active ? 'var(--accent)' : '';
-      });
+      wrap.querySelectorAll('.tag-filter-chip').forEach((c) => c.classList.remove('active-filter'));
+      chip.classList.add('active-filter');
       renderPhraseGrid(content, loadPhrases());
     });
   });

@@ -1,7 +1,8 @@
 import type { Theme } from '../types/index';
-import { loadSettings, saveSettings, getStorageUsage, exportDataJson, importDataJson, clearAllData } from '../services/storage';
+import { loadSettings, saveSettings, getStorageUsage, exportDataJson, importDataJson, clearAllData, loadPhrases, savePhrases } from '../services/storage';
 import { applyTheme } from '../main';
 import { showToast } from '../components/toast';
+import { mapLegacyTag, ALL_PREDEFINED_TAGS, TAG_GROUPS } from '../constants/tags';
 
 function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -108,6 +109,31 @@ export function renderSettingsPage(container: HTMLElement): void {
           </div>
         </div>
 
+        <!-- Tag Management -->
+        <div class="settings-section">
+          <div class="settings-section-title">標籤管理</div>
+          <div style="margin-bottom:16px">
+            <div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">
+              標準標籤清單（共 ${ALL_PREDEFINED_TAGS.length} 個，分 ${TAG_GROUPS.length} 類）：
+            </div>
+            ${TAG_GROUPS.map((g) => `
+              <div style="margin-bottom:10px">
+                <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px">${g.icon} ${g.group}</div>
+                <div style="display:flex;flex-wrap:wrap;gap:5px">
+                  ${g.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">一鍵清理舊標籤</div>
+              <div class="settings-row-desc">將收藏中的舊有標籤自動對應到標準清單，無法對應的將被移除</div>
+            </div>
+            <button id="cleanup-tags-btn" class="btn btn-secondary btn-sm">🧹 整理標籤</button>
+          </div>
+        </div>
+
         <!-- Danger zone -->
         <div class="settings-section" style="border-color:var(--danger-light)">
           <div class="settings-section-title" style="color:var(--danger)">危險操作</div>
@@ -197,6 +223,35 @@ function bindSettingsEvents(container: HTMLElement): void {
     };
     reader.readAsText(file);
     importFile.value = '';
+  });
+
+  // Tag cleanup
+  container.querySelector('#cleanup-tags-btn')?.addEventListener('click', () => {
+    const phrases = loadPhrases();
+    let totalRemoved = 0;
+    let totalMapped = 0;
+
+    const updated = phrases.map((p) => {
+      const cleanedTags: string[] = [];
+      p.tags.forEach((tag) => {
+        const mapped = mapLegacyTag(tag);
+        if (mapped && !cleanedTags.includes(mapped)) {
+          if (mapped !== tag) totalMapped++;
+          cleanedTags.push(mapped);
+        } else if (!mapped) {
+          totalRemoved++;
+        }
+      });
+      return { ...p, tags: cleanedTags };
+    });
+
+    savePhrases(updated);
+    showToast(
+      `標籤整理完成：對應 ${totalMapped} 個、移除 ${totalRemoved} 個無法對應的標籤`,
+      'success',
+      5000
+    );
+    renderSettingsPage(container);
   });
 
   // Clear all

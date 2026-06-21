@@ -3,6 +3,18 @@ import type {
   GeminiSituationResult,
   ConversationItem,
 } from '../types/index';
+import { ALL_PREDEFINED_TAGS, MAX_TAGS } from '../constants/tags';
+
+const TAG_CONSTRAINT = `
+【標籤規則 - 非常重要】
+tags 欄位只能從以下固定清單中選 1-${MAX_TAGS} 個，不可自創新標籤，不可使用英文標籤：
+${ALL_PREDEFINED_TAGS.join('、')}
+
+- 功能類：打招呼 / 道謝 / 道歉 / 請求幫助 / 詢問資訊 / 拒絕 / 同意 / 提出建議 / 表達抱怨 / 確認資訊 / 鼓勵安慰 / 閒聊寒暄 / 表達感受 / 解釋說明
+- 場合類：正式場合 / 日常口語 / 商務職場 / 緊急情況
+- 情境類：旅遊 / 餐廳用餐 / 購物消費 / 醫療健康 / 社交聚會 / 電話通訊
+
+situationTags 只填 1-2 個最相關的情境（如：職場、旅遊、餐廳、購物、醫療、社交、機場、飯店）。`;
 
 const GEMINI_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
@@ -83,8 +95,8 @@ export async function lookupPhrase(
       "formalityLevel": "formal 或 informal 或 neutral"
     }
   ],
-  "situationTags": ["情境標籤，如：職場、社交、旅遊、餐廳"],
-  "tags": ["主題標籤，如：打招呼、道歉、請求、感謝"]
+  "situationTags": ["1-2個情境標籤"],
+  "tags": ["1-4個主題標籤，只能從固定清單選"]
 }
 
 對話範例要求：
@@ -93,7 +105,9 @@ export async function lookupPhrase(
 
 alternativeExpressions 要求：
 - 提供 3-5 個同義或功能相近的替換表達
-- 每個都要說明語感差異（例如：更正式、更口語、更委婉、美式 vs 英式等）`;
+- 每個都要說明語感差異（例如：更正式、更口語、更委婉、美式 vs 英式等）
+
+${TAG_CONSTRAINT}`;
 
   const text = await callGemini(apiKey, prompt);
   return parseJson<GeminiConversationResult>(text);
@@ -139,12 +153,14 @@ ${dialogue}
         "formalityLevel": "formal 或 informal 或 neutral"
       }
     ],
-    "situationTags": ["情境標籤"],
-    "tags": ["主題標籤"]
+    "situationTags": ["1-2個情境標籤"],
+    "tags": ["1-4個主題標籤，只能從固定清單選"]
   }
 ]
 
-每筆 alternativeExpressions 提供 2-3 個即可。`;
+每筆 alternativeExpressions 提供 2-3 個即可。
+
+${TAG_CONSTRAINT}`;
 
   const text = await callGemini(apiKey, prompt);
   return parseJson<GeminiConversationResult[]>(text);
@@ -180,7 +196,7 @@ export async function searchSituation(
       ]
     }
   ],
-  "tags": ["相關主題標籤"]
+  "tags": ["1-4個主題標籤，只能從固定清單選"]
 }
 
 要求：
@@ -188,7 +204,9 @@ export async function searchSituation(
 - keyPhrases：12-18 個在這個情境中最常用、最實用的表達
 - 每個 keyPhrase 提供 2-4 個 alternatives（含語感差異說明）
 - 對話要真實自然，包含常見的口語說法和文化背景
-- 語言以美式英語為主，如有英式說法可在 alternatives 中說明`;
+- 語言以美式英語為主，如有英式說法可在 alternatives 中說明
+
+${TAG_CONSTRAINT}`;
 
   const text = await callGemini(apiKey, prompt);
   return parseJson<GeminiSituationResult>(text);
