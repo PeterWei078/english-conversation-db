@@ -233,7 +233,11 @@ function bindSettingsEvents(container: HTMLElement): void {
 
     const updated = phrases.map((p) => {
       const cleanedTags: string[] = [];
-      p.tags.forEach((tag) => {
+
+      // First migrate situationTags → tags
+      const allRaw = [...(p.situationTags ?? []), ...p.tags];
+
+      allRaw.forEach((tag) => {
         const mapped = mapLegacyTag(tag);
         if (mapped && !cleanedTags.includes(mapped)) {
           if (mapped !== tag) totalMapped++;
@@ -242,12 +246,13 @@ function bindSettingsEvents(container: HTMLElement): void {
           totalRemoved++;
         }
       });
-      return { ...p, tags: cleanedTags };
+
+      return { ...p, tags: cleanedTags, situationTags: [] };
     });
 
     savePhrases(updated);
     showToast(
-      `標籤整理完成：對應 ${totalMapped} 個、移除 ${totalRemoved} 個無法對應的標籤`,
+      `標籤整理完成：對應 ${totalMapped} 個、移除 ${totalRemoved} 個無效標籤`,
       'success',
       5000
     );

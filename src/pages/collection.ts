@@ -12,7 +12,6 @@ import { TAG_GROUPS, ALL_PREDEFINED_TAGS } from '../constants/tags';
 
 let currentTab: CollectionTab = 'phrases';
 let currentSort: SortMode = 'newest';
-let currentSituationFilter = '';
 let currentTagFilter = '';
 
 function esc(s: string): string {
@@ -69,9 +68,6 @@ function renderPhrasesTab(container: HTMLElement): void {
   const content = container.querySelector<HTMLElement>('#collection-content')!;
   const allPhrases = loadPhrases();
 
-  // Collect all unique situation tags
-  const allSituationTags = Array.from(new Set(allPhrases.flatMap((p) => p.situationTags)));
-
   const counts = {
     total: allPhrases.length,
     unfamiliar: allPhrases.filter((p) => p.masteryLevel === 'unfamiliar').length,
@@ -90,22 +86,14 @@ function renderPhrasesTab(container: HTMLElement): void {
 
     <!-- Toolbar -->
     <div class="collection-toolbar">
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <select id="sort-select" class="select" style="width:auto">
-          <option value="newest" ${currentSort === 'newest' ? 'selected' : ''}>最新</option>
-          <option value="alpha" ${currentSort === 'alpha' ? 'selected' : ''}>字母</option>
-          <option value="random" ${currentSort === 'random' ? 'selected' : ''}>隨機</option>
-          <option value="unfamiliar" ${currentSort === 'unfamiliar' ? 'selected' : ''}>不熟優先</option>
-          <option value="okay" ${currentSort === 'okay' ? 'selected' : ''}>尚可</option>
-          <option value="familiar" ${currentSort === 'familiar' ? 'selected' : ''}>熟悉</option>
-        </select>
-        ${allSituationTags.length ? `
-          <select id="situation-filter" class="select" style="width:auto">
-            <option value="">所有情境</option>
-            ${allSituationTags.map((t) => `<option value="${esc(t)}" ${currentSituationFilter === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}
-          </select>
-        ` : ''}
-      </div>
+      <select id="sort-select" class="select" style="width:auto">
+        <option value="newest" ${currentSort === 'newest' ? 'selected' : ''}>最新</option>
+        <option value="alpha" ${currentSort === 'alpha' ? 'selected' : ''}>字母</option>
+        <option value="random" ${currentSort === 'random' ? 'selected' : ''}>隨機</option>
+        <option value="unfamiliar" ${currentSort === 'unfamiliar' ? 'selected' : ''}>不熟優先</option>
+        <option value="okay" ${currentSort === 'okay' ? 'selected' : ''}>尚可</option>
+        <option value="familiar" ${currentSort === 'familiar' ? 'selected' : ''}>熟悉</option>
+      </select>
       <div style="font-size:13px;color:var(--text-muted)" id="filter-count"></div>
     </div>
 
@@ -124,11 +112,6 @@ function renderPhrasesTab(container: HTMLElement): void {
     renderPhraseGrid(content, loadPhrases());
   });
 
-  // Situation filter
-  content.querySelector('#situation-filter')?.addEventListener('change', (e) => {
-    currentSituationFilter = (e.target as HTMLSelectElement).value;
-    renderPhraseGrid(content, loadPhrases());
-  });
 }
 
 function renderGroupedTagFilters(content: HTMLElement, allPhrases: ConversationItem[]): void {
@@ -230,9 +213,6 @@ function renderGroupedTagFilters(content: HTMLElement, allPhrases: ConversationI
 function applyFiltersAndSort(phrases: ConversationItem[]): ConversationItem[] {
   let result = phrases;
 
-  if (currentSituationFilter) {
-    result = result.filter((p) => p.situationTags.includes(currentSituationFilter));
-  }
   if (currentTagFilter) {
     result = result.filter((p) => p.tags.includes(currentTagFilter));
   }

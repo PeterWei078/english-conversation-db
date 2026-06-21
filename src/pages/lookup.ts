@@ -209,11 +209,6 @@ function renderLookupResult(
         <span class="notes-label">用法說明</span>${esc(result.usageNotes)}
       </div>` : ''}
 
-      <!-- Situation tags -->
-      ${result.situationTags.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">
-        ${result.situationTags.map((t) => `<span class="situation-tag-chip">${esc(t)}</span>`).join('')}
-      </div>` : ''}
-
       <div class="divider"></div>
 
       <!-- Dialogue -->
@@ -307,7 +302,7 @@ function renderLookupResult(
       usageNotes: currentResult.usageNotes,
       dialogueExample: currentResult.dialogueExample,
       alternativeExpressions: currentResult.alternativeExpressions,
-      situationTags: currentResult.situationTags,
+      situationTags: [],
       tags: currentResult.tags,
       isPinned: false,
       masteryLevel: selectedMastery,

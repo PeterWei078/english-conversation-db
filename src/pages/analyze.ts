@@ -241,7 +241,7 @@ function bindAnalyzeResultEvents(output: HTMLElement, _container: HTMLElement): 
         usageNotes: result.usageNotes,
         dialogueExample: result.dialogueExample,
         alternativeExpressions: result.alternativeExpressions,
-        situationTags: result.situationTags,
+        situationTags: [],
         tags: result.tags,
         isPinned: false,
         masteryLevel: selectedMastery,

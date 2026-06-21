@@ -95,7 +95,6 @@ export async function lookupPhrase(
       "formalityLevel": "formal 或 informal 或 neutral"
     }
   ],
-  "situationTags": ["1-2個情境標籤"],
   "tags": ["1-4個主題標籤，只能從固定清單選"]
 }
 
@@ -153,7 +152,6 @@ ${dialogue}
         "formalityLevel": "formal 或 informal 或 neutral"
       }
     ],
-    "situationTags": ["1-2個情境標籤"],
     "tags": ["1-4個主題標籤，只能從固定清單選"]
   }
 ]

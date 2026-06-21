@@ -142,19 +142,6 @@ export function renderPhraseCard(
     const footer = document.createElement('div');
     footer.className = 'phrase-card-footer';
 
-    // Situation tags
-    if (current.situationTags.length) {
-      const sitTags = document.createElement('div');
-      sitTags.className = 'situation-tags';
-      current.situationTags.forEach((t) => {
-        const chip = document.createElement('span');
-        chip.className = 'situation-tag-chip';
-        chip.textContent = t;
-        sitTags.appendChild(chip);
-      });
-      footer.appendChild(sitTags);
-    }
-
     // Mastery cycle button
     const masteryConfig = MASTERY_CONFIG[current.masteryLevel];
     const masteryBtn = document.createElement('button');

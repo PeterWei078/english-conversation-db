@@ -67,7 +67,7 @@ export interface GeminiConversationResult {
   usageNotes: string;
   dialogueExample: DialogueExample;
   alternativeExpressions: AlternativeExpression[];
-  situationTags: string[];
+  situationTags?: string[];
   tags: string[];
 }
 

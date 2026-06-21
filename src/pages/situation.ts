@@ -4,6 +4,7 @@ import { loadSettings, addSituationPack, addPhraseItem, phraseExists } from '../
 import { speak } from '../services/speech';
 import { showToast } from '../components/toast';
 import { renderDialogue } from '../components/dialogueDisplay';
+import { mapLegacyTag, ALL_PREDEFINED_TAGS } from '../constants/tags';
 
 interface SituationCategory {
   icon: string;
@@ -289,8 +290,19 @@ function renderSituationResult(result: GeminiSituationResult, output: HTMLElemen
 function saveIndividualPhrase(
   phrase: GeminiSituationResult['keyPhrases'][0],
   situationName: string,
-  tags: string[]
+  packTags: string[]
 ): void {
+  // Merge pack tags + try to map situationName to a predefined tag
+  const situationMapped = mapLegacyTag(situationName);
+  const mergedRaw = situationMapped
+    ? [situationMapped, ...packTags]
+    : packTags;
+
+  // Deduplicate and keep only predefined tags, max 4
+  const cleanTags = Array.from(new Set(mergedRaw))
+    .filter((t) => ALL_PREDEFINED_TAGS.includes(t))
+    .slice(0, 4);
+
   const item: ConversationItem = {
     id: `phrase_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     phrase: phrase.phrase,
@@ -307,8 +319,8 @@ function saveIndividualPhrase(
       nuanceDifference: a.nuanceDifference,
       formalityLevel: a.formalityLevel,
     })),
-    situationTags: [situationName],
-    tags,
+    situationTags: [],
+    tags: cleanTags,
     isPinned: false,
     masteryLevel: 'unfamiliar',
     createdAt: Date.now(),
