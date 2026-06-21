@@ -332,6 +332,11 @@ function renderPackCard(pack: SituationPack, container: HTMLElement): HTMLElemen
         <summary class="phrase-section-summary">🔑 關鍵表達（${pack.keyPhrases.length} 個）</summary>
         <div class="situation-key-phrases" id="kp-${pack.id}" style="margin-top:8px"></div>
       </details>
+      ${pack.vocabulary && pack.vocabulary.length > 0 ? `
+      <details class="phrase-alt-details" style="margin-top:4px">
+        <summary class="phrase-section-summary">📚 重要字彙整理（${pack.vocabulary.length} 個）</summary>
+        <div id="vocab-${pack.id}" style="margin-top:8px"></div>
+      </details>` : ''}
     </div>
   `;
 
@@ -346,7 +351,8 @@ function renderPackCard(pack: SituationPack, container: HTMLElement): HTMLElemen
   }, { once: true });
 
   // Lazy render key phrases
-  card.querySelector('details:last-of-type')?.addEventListener('toggle', () => {
+  card.querySelector<HTMLElement>(`#kp-${pack.id}`)?.closest('details')
+    ?.addEventListener('toggle', () => {
     const el = card.querySelector<HTMLElement>(`#kp-${pack.id}`)!;
     if (el.children.length > 0) return;
     pack.keyPhrases.forEach((phrase) => {
@@ -371,6 +377,40 @@ function renderPackCard(pack: SituationPack, container: HTMLElement): HTMLElemen
       el.appendChild(item);
     });
   }, { once: true });
+
+  // Lazy render vocabulary
+  if (pack.vocabulary && pack.vocabulary.length > 0) {
+    card.querySelector<HTMLElement>(`#vocab-${pack.id}`)?.closest('details')
+      ?.addEventListener('toggle', () => {
+      const el = card.querySelector<HTMLElement>(`#vocab-${pack.id}`)!;
+      if (el.children.length > 0) return;
+      pack.vocabulary!.forEach((item, i) => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-color)';
+        if (i === pack.vocabulary!.length - 1) row.style.borderBottom = 'none';
+        row.innerHTML = `
+          <div style="min-width:26px;height:26px;border-radius:50%;background:var(--accent-light);color:var(--accent-text);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:2px">${i + 1}</div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+              <span style="font-size:14px;font-weight:700;color:var(--text-primary)">
+                ${esc(item.word)}
+                <button class="btn-icon speak-vocab-btn" style="width:20px;height:20px;font-size:12px;display:inline-flex;vertical-align:middle"
+                  data-text="${esc(item.word)}" title="朗讀">🔊</button>
+              </span>
+              <span style="font-size:11px;color:var(--text-muted);background:var(--bg-secondary);padding:1px 7px;border-radius:999px">${esc(item.partOfSpeech)}</span>
+              <span style="font-size:13px;color:var(--accent-text);font-weight:600">${esc(item.translation)}</span>
+            </div>
+            <div style="margin-top:4px;font-size:13px;color:var(--text-secondary);font-style:italic">${esc(item.example)}</div>
+            <div style="font-size:12px;color:var(--text-muted)">${esc(item.exampleTranslation)}</div>
+          </div>
+        `;
+        row.querySelector('.speak-vocab-btn')?.addEventListener('click', (e) => {
+          speak((e.currentTarget as HTMLElement).dataset.text ?? '');
+        });
+        el.appendChild(row);
+      });
+    }, { once: true });
+  }
 
   // Delete
   card.querySelector('.delete-pack-btn')?.addEventListener('click', () => {
@@ -468,12 +508,21 @@ function renderGenerationResult(
         </div>
       </div>
 
-      <div class="situation-pack-card">
+      <div class="situation-pack-card" style="margin-bottom:16px">
         <div class="situation-pack-header">
           <span style="font-size:15px;font-weight:700">🔑 關鍵表達（${result.keyPhrases.length} 個）</span>
         </div>
         <div class="situation-pack-body" style="padding-top:16px">
           <div class="situation-key-phrases" id="key-phrases-list"></div>
+        </div>
+      </div>
+
+      <div class="situation-pack-card">
+        <div class="situation-pack-header">
+          <span style="font-size:15px;font-weight:700">📚 重要字彙整理（${result.vocabulary.length} 個）</span>
+        </div>
+        <div class="situation-pack-body" style="padding-top:16px">
+          <div id="vocabulary-list"></div>
         </div>
       </div>
     </div>
@@ -511,6 +560,33 @@ function renderGenerationResult(
     phrasesList.appendChild(item);
   });
 
+  const vocabList = output.querySelector<HTMLElement>('#vocabulary-list')!;
+  result.vocabulary.forEach((item, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-color)';
+    if (i === result.vocabulary.length - 1) row.style.borderBottom = 'none';
+    row.innerHTML = `
+      <div style="min-width:26px;height:26px;border-radius:50%;background:var(--accent-light);color:var(--accent-text);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:2px">${i + 1}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+          <span style="font-size:15px;font-weight:700;color:var(--text-primary)">
+            ${esc(item.word)}
+            <button class="btn-icon speak-vocab-btn" style="width:20px;height:20px;font-size:12px;display:inline-flex;vertical-align:middle"
+              data-text="${esc(item.word)}" title="朗讀">🔊</button>
+          </span>
+          <span style="font-size:11px;color:var(--text-muted);background:var(--bg-secondary);padding:1px 7px;border-radius:999px">${esc(item.partOfSpeech)}</span>
+          <span style="font-size:13px;color:var(--accent-text);font-weight:600">${esc(item.translation)}</span>
+        </div>
+        <div style="margin-top:4px;font-size:13px;color:var(--text-secondary);font-style:italic">${esc(item.example)}</div>
+        <div style="font-size:12px;color:var(--text-muted)">${esc(item.exampleTranslation)}</div>
+      </div>
+    `;
+    row.querySelector('.speak-vocab-btn')?.addEventListener('click', (e) => {
+      speak((e.currentTarget as HTMLElement).dataset.text ?? '');
+    });
+    vocabList.appendChild(row);
+  });
+
   // Save button
   output.querySelector('#save-pack-btn')?.addEventListener('click', () => {
     if (!currentResult) return;
@@ -528,6 +604,7 @@ function renderGenerationResult(
       category: generateCategory,
       sampleDialogue: currentResult.sampleDialogue,
       keyPhrases: currentResult.keyPhrases,
+      vocabulary: currentResult.vocabulary,
       savedAt: Date.now(),
       tags: currentResult.tags,
     };

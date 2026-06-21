@@ -47,6 +47,14 @@ export interface SituationPhrase {
   alternatives: AlternativeExpression[];
 }
 
+export interface VocabularyItem {
+  word: string;
+  partOfSpeech: string;
+  translation: string;
+  example: string;
+  exampleTranslation: string;
+}
+
 export interface SituationPack {
   id: string;
   situationName: string;
@@ -54,6 +62,7 @@ export interface SituationPack {
   category: string;
   sampleDialogue: DialogueExample;
   keyPhrases: SituationPhrase[];
+  vocabulary?: VocabularyItem[];
   savedAt: number;
   tags: string[];
 }
@@ -76,6 +85,7 @@ export interface GeminiSituationResult {
   situationDescription: string;
   sampleDialogue: DialogueExample;
   keyPhrases: SituationPhrase[];
+  vocabulary: VocabularyItem[];
   tags: string[];
 }
 

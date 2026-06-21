@@ -194,6 +194,15 @@ export async function searchSituation(
       ]
     }
   ],
+  "vocabulary": [
+    {
+      "word": "英文單字或片語",
+      "partOfSpeech": "詞性（繁體中文，如：名詞、動詞、形容詞、片語等）",
+      "translation": "繁體中文翻譯",
+      "example": "包含此單字的英文例句",
+      "exampleTranslation": "例句繁體中文翻譯"
+    }
+  ],
   "tags": ["1-4個主題標籤，只能從固定清單選"]
 }
 
@@ -201,6 +210,7 @@ export async function searchSituation(
 - sampleDialogue：10-14 句自然對話，涵蓋情境中的典型對話流程
 - keyPhrases：12-18 個在這個情境中最常用、最實用的表達
 - 每個 keyPhrase 提供 2-4 個 alternatives（含語感差異說明）
+- vocabulary：20-30 個與此情境高度相關的重要單字與片語，涵蓋名詞、動詞、形容詞、專有術語等各類詞性，盡量詳盡；若使用者的情境描述中有特別提到要學習的詞彙主題（如特定類別的詞彙），請優先以該主題為核心展開
 - 對話要真實自然，包含常見的口語說法和文化背景
 - 語言以美式英語為主，如有英式說法可在 alternatives 中說明
 
