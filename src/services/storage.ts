@@ -124,6 +124,15 @@ export function saveSituations(items: SituationPack[]): void {
   localStorage.setItem(KEYS.SITUATIONS, JSON.stringify(items));
 }
 
+export function updateSituationPack(id: string, patch: Partial<SituationPack>): void {
+  const list = loadSituations();
+  const idx = list.findIndex((s) => s.id === id);
+  if (idx !== -1) {
+    list[idx] = { ...list[idx], ...patch };
+    saveSituations(list);
+  }
+}
+
 export function addSituationPack(item: SituationPack): void {
   const list = loadSituations();
   const existing = list.findIndex((s) => s.id === item.id);

@@ -1,6 +1,6 @@
 import type { GeminiSituationResult, SituationPack } from '../types/index';
 import { searchSituation, ThrottleError } from '../services/ai';
-import { loadSettings, addSituationPack, loadSituations, deleteSituationPack } from '../services/storage';
+import { loadSettings, addSituationPack, loadSituations, deleteSituationPack, updateSituationPack } from '../services/storage';
 import { speak } from '../services/speech';
 import { showToast } from '../components/toast';
 import { renderDialogue } from '../components/dialogueDisplay';
@@ -32,10 +32,10 @@ const CATEGORIES: SituationCategory[] = [
   { icon: '🎁', label: '祝賀/邀請',   query: '生日祝賀、節日問候、活動邀請' },
 ];
 
-// null = show all; '自訂' = custom packs; cat.label = specific category
+// null = show all; cat.label = specific category
 let currentFilter: string | null = null;
-// category label to assign when saving a newly generated pack
-let generateCategory: string = '自訂';
+// category label to assign when saving a newly generated pack (always one of 18)
+let generateCategory: string = CATEGORIES[0].label;
 let currentResult: GeminiSituationResult | null = null;
 
 function esc(s: string): string {
@@ -45,7 +45,7 @@ function esc(s: string): string {
 export function renderSituationPage(container: HTMLElement): void {
   currentResult = null;
   currentFilter = null;
-  generateCategory = '自訂';
+  generateCategory = CATEGORIES[0].label;
 
   container.innerHTML = `
     <div class="page">
@@ -88,8 +88,7 @@ export function renderSituationPage(container: HTMLElement): void {
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <span style="font-size:13px;color:var(--text-secondary)">儲存至分類：</span>
             <select id="generate-category-select" class="select" style="width:auto;font-size:13px">
-              <option value="自訂">📁 自訂</option>
-              ${CATEGORIES.map((c) => `<option value="${esc(c.label)}">${c.icon} ${c.label}</option>`).join('')}
+              ${CATEGORIES.map((c) => `<option value="${esc(c.label)}"${generateCategory === c.label ? ' selected' : ''}>${c.icon} ${c.label}</option>`).join('')}
             </select>
           </div>
         </div>
@@ -112,9 +111,7 @@ function renderAllFilterChip(container: HTMLElement): void {
   const row = container.querySelector<HTMLElement>('#all-filter-row')!;
   row.innerHTML = '';
 
-  const packs = loadSituations();
-  const total = packs.length;
-
+  const total = loadSituations().length;
   const allChip = document.createElement('button');
   allChip.className = `situation-category-btn${currentFilter === null ? ' active' : ''}`;
   allChip.style.cssText = 'display:inline-flex;width:auto;padding:8px 16px;min-width:unset';
@@ -125,21 +122,6 @@ function renderAllFilterChip(container: HTMLElement): void {
     renderPacksList(container);
   });
   row.appendChild(allChip);
-
-  // "自訂" chip if there are any custom packs
-  const customCount = packs.filter((p) => p.category === '自訂').length;
-  if (customCount > 0) {
-    const customChip = document.createElement('button');
-    customChip.className = `situation-category-btn${currentFilter === '自訂' ? ' active' : ''}`;
-    customChip.style.cssText = 'display:inline-flex;width:auto;padding:8px 16px;min-width:unset;margin-left:8px';
-    customChip.innerHTML = `<span>📁 自訂</span><span class="sit-count-badge">${customCount}</span>`;
-    customChip.addEventListener('click', () => {
-      currentFilter = '自訂';
-      refreshFilters(container);
-      renderPacksList(container);
-    });
-    row.appendChild(customChip);
-  }
 }
 
 function renderCategoryGrid(container: HTMLElement): void {
@@ -159,12 +141,12 @@ function renderCategoryGrid(container: HTMLElement): void {
     `;
     btn.addEventListener('click', () => {
       currentFilter = cat.label;
-      // pre-fill generate section
+      generateCategory = cat.label;
+      // Sync generate section selects
       const input = container.querySelector<HTMLInputElement>('#situation-input');
       if (input && !input.value) input.value = cat.query;
       const sel = container.querySelector<HTMLSelectElement>('#generate-category-select');
       if (sel) sel.value = cat.label;
-      generateCategory = cat.label;
       refreshFilters(container);
       renderPacksList(container);
     });
@@ -179,6 +161,8 @@ function refreshFilters(container: HTMLElement): void {
 }
 
 // ── Packs list ────────────────────────────────────────────
+
+export const VALID_CATEGORIES = new Set(CATEGORIES.map((c) => c.label));
 
 function renderPacksList(container: HTMLElement): void {
   const section = container.querySelector<HTMLElement>('#packs-section')!;
@@ -241,14 +225,71 @@ function renderPacksList(container: HTMLElement): void {
   });
 }
 
+function mountCategoryPicker(
+  wrap: HTMLElement,
+  pack: SituationPack,
+  container: HTMLElement
+): void {
+  const isValid = VALID_CATEGORIES.has(pack.category);
+  const catMeta = CATEGORIES.find((c) => c.label === pack.category);
+
+  const renderBtn = (currentCat: string) => {
+    wrap.innerHTML = '';
+    const meta = CATEGORIES.find((c) => c.label === currentCat);
+    const btn = document.createElement('button');
+    btn.className = `cat-picker-btn ${meta ? 'categorized' : 'uncategorized'}`;
+    btn.innerHTML = meta
+      ? `${meta.icon} ${meta.label} ▾`
+      : `⚠️ 未分類 — 點選設定 ▾`;
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      // Close any open popovers
+      document.querySelectorAll('.cat-picker-popover').forEach((p) => p.remove());
+
+      const pop = document.createElement('div');
+      pop.className = 'cat-picker-popover';
+
+      CATEGORIES.forEach((cat) => {
+        const opt = document.createElement('button');
+        opt.className = `cat-picker-option${currentCat === cat.label ? ' selected' : ''}`;
+        opt.innerHTML = `<span>${cat.icon}</span><span>${cat.label}</span>`;
+        opt.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          updateSituationPack(pack.id, { category: cat.label });
+          pack.category = cat.label;
+          pop.remove();
+          renderBtn(cat.label);
+          // Refresh filters counts
+          refreshFilters(container);
+          // If current filter no longer matches, refresh packs list
+          if (currentFilter !== null && currentFilter !== cat.label) {
+            renderPacksList(container);
+          }
+        });
+        pop.appendChild(opt);
+      });
+
+      wrap.appendChild(pop);
+      const close = (ev: MouseEvent) => {
+        if (!pop.contains(ev.target as Node)) {
+          pop.remove();
+          document.removeEventListener('click', close);
+        }
+      };
+      setTimeout(() => document.addEventListener('click', close), 0);
+    });
+
+    wrap.appendChild(btn);
+  };
+
+  renderBtn(isValid ? pack.category : (catMeta?.label ?? ''));
+}
+
 function renderPackCard(pack: SituationPack, container: HTMLElement): HTMLElement {
   const card = document.createElement('div');
   card.className = 'situation-pack-card';
 
-  const catMeta = CATEGORIES.find((c) => c.label === pack.category);
-  const categoryDisplay = catMeta
-    ? `${catMeta.icon} ${catMeta.label}`
-    : `📁 ${pack.category}`;
   const savedDate = new Date(pack.savedAt).toLocaleDateString('zh-TW');
 
   card.innerHTML = `
@@ -256,9 +297,7 @@ function renderPackCard(pack: SituationPack, container: HTMLElement): HTMLElemen
       <div style="flex:1;min-width:0">
         <div class="situation-pack-title">${esc(pack.situationName)}</div>
         <div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap">
-          <span style="font-size:12px;padding:2px 10px;background:var(--accent-light);color:var(--accent-text);border-radius:999px;font-weight:600">
-            ${categoryDisplay}
-          </span>
+          <div class="cat-picker-wrap" id="cat-wrap-${pack.id}"></div>
           <span style="font-size:12px;color:var(--text-muted)">${savedDate} · ${pack.keyPhrases.length} 個表達</span>
         </div>
       </div>
@@ -278,6 +317,10 @@ function renderPackCard(pack: SituationPack, container: HTMLElement): HTMLElemen
       </details>
     </div>
   `;
+
+  // Mount category picker
+  const catWrap = card.querySelector<HTMLElement>(`#cat-wrap-${pack.id}`)!;
+  mountCategoryPicker(catWrap, pack, container);
 
   // Lazy render dialogue
   card.querySelector('details:first-of-type')?.addEventListener('toggle', () => {

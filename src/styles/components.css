@@ -435,6 +435,66 @@
 .already-saved-badge { font-size: 11px; color: var(--success); white-space: nowrap; writing-mode: vertical-rl; transform: rotate(180deg); }
 .analyze-card-body { flex: 1; min-width: 0; }
 
+/* ── Category picker (inline popover on pack cards) ── */
+.cat-picker-wrap { position: relative; display: inline-block; }
+
+.cat-picker-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: opacity 0.15s;
+}
+.cat-picker-btn:hover { opacity: 0.8; }
+.cat-picker-btn.uncategorized {
+  background: var(--warning-light);
+  color: var(--warning);
+}
+.cat-picker-btn.categorized {
+  background: var(--accent-light);
+  color: var(--accent-text);
+}
+
+.cat-picker-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 8px;
+  min-width: 180px;
+  max-width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cat-picker-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: background 0.1s;
+  background: none;
+  border: none;
+  text-align: left;
+  width: 100%;
+}
+.cat-picker-option:hover { background: var(--bg-hover); }
+.cat-picker-option.selected { background: var(--accent-light); color: var(--accent-text); }
+
 /* ── Situation count badge ── */
 .sit-count-badge {
   display: inline-flex;
