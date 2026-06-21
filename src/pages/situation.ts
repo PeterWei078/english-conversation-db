@@ -1,6 +1,7 @@
 import type { GeminiSituationResult, SituationPack, ConversationItem } from '../types/index';
 import { searchSituation, ThrottleError } from '../services/ai';
-import { loadSettings, addSituationPack, addPhraseItem, phraseExists } from '../services/storage';
+import { loadSettings, addSituationPack, addPhraseItem, phraseExists, findSimilarPhrases } from '../services/storage';
+import { showSimilarPhraseDialog } from '../components/confirmDialog';
 import { speak } from '../services/speech';
 import { showToast } from '../components/toast';
 import { renderDialogue } from '../components/dialogueDisplay';
@@ -238,9 +239,16 @@ function renderSituationResult(result: GeminiSituationResult, output: HTMLElemen
     });
 
     // Save individual phrase
-    item.querySelector('.save-phrase-btn')?.addEventListener('click', (e) => {
+    item.querySelector('.save-phrase-btn')?.addEventListener('click', async (e) => {
       e.stopPropagation();
       const btn = e.currentTarget as HTMLButtonElement;
+
+      const similars = findSimilarPhrases(phrase.phrase);
+      if (similars.length > 0) {
+        const confirmed = await showSimilarPhraseDialog(phrase.phrase, similars);
+        if (!confirmed) return;
+      }
+
       saveIndividualPhrase(phrase, result.situationName, result.tags);
       btn.textContent = '✅';
       btn.disabled = true;
@@ -269,9 +277,27 @@ function renderSituationResult(result: GeminiSituationResult, output: HTMLElemen
     btn.disabled = true;
   });
 
-  // Save all phrases button
-  output.querySelector('#save-all-phrases-btn')?.addEventListener('click', () => {
+  // Save all phrases button (bulk — skip similar silently, only block exact duplicates)
+  output.querySelector('#save-all-phrases-btn')?.addEventListener('click', async () => {
     if (!currentResult) return;
+
+    // Collect phrases with similarities (not exact duplicates)
+    const withSimilars = currentResult.keyPhrases.filter(
+      (p) => !phraseExists(p.phrase) && findSimilarPhrases(p.phrase).length > 0
+    );
+
+    if (withSimilars.length > 0) {
+      const allSimilars = withSimilars.flatMap((p) => findSimilarPhrases(p.phrase));
+      const unique = allSimilars.filter(
+        (s, i, arr) => arr.findIndex((x) => x.item.id === s.item.id) === i
+      );
+      const confirmed = await showSimilarPhraseDialog(
+        withSimilars.map((p) => p.phrase).join('、'),
+        unique
+      );
+      if (!confirmed) return;
+    }
+
     let savedCount = 0;
     currentResult.keyPhrases.forEach((phrase) => {
       if (!phraseExists(phrase.phrase)) {

@@ -1,9 +1,10 @@
 import type { GeminiConversationResult, ConversationItem, MasteryLevel } from '../types/index';
 import { analyzeDialogue, ThrottleError } from '../services/ai';
-import { loadSettings, addPhraseItem, phraseExists } from '../services/storage';
+import { loadSettings, addPhraseItem, phraseExists, findSimilarPhrases } from '../services/storage';
 import { speak } from '../services/speech';
 import { showToast } from '../components/toast';
 import { renderDialogue } from '../components/dialogueDisplay';
+import { showSimilarPhraseDialog } from '../components/confirmDialog';
 
 const MAX_CHARS = 5000;
 
@@ -11,6 +12,7 @@ interface ResultItem {
   result: GeminiConversationResult;
   checked: boolean;
   alreadySaved: boolean;
+  similarLabel: string | null;  // non-null means fuzzy similar found
 }
 
 let items: ResultItem[] = [];
@@ -88,11 +90,18 @@ async function performAnalysis(text: string, container: HTMLElement): Promise<vo
 
   try {
     const results = await analyzeDialogue(settings.geminiApiKey, text);
-    items = results.map((r) => ({
-      result: r,
-      checked: true,
-      alreadySaved: phraseExists(r.phrase),
-    }));
+    items = results.map((r) => {
+      const alreadySaved = phraseExists(r.phrase);
+      const similars = alreadySaved ? [] : findSimilarPhrases(r.phrase);
+      return {
+        result: r,
+        checked: !alreadySaved,
+        alreadySaved,
+        similarLabel: similars.length > 0
+          ? `與「${similars[0].item.phrase}」${similars[0].reason}`
+          : null,
+      };
+    });
     renderAnalyzeResults(output, container);
   } catch (err) {
     if (err instanceof ThrottleError) {
@@ -154,7 +163,7 @@ function renderAnalyzeCards(output: HTMLElement): void {
 
   items.forEach((item, idx) => {
     const card = document.createElement('div');
-    card.className = `analyze-card${item.checked ? ' is-checked' : ''}${item.alreadySaved ? ' already-saved' : ''}`;
+    card.className = `analyze-card${item.checked ? ' is-checked' : ''}${item.alreadySaved ? ' already-saved' : ''}${item.similarLabel ? ' has-similar' : ''}`;
     card.dataset.idx = String(idx);
 
     card.innerHTML = `
@@ -163,6 +172,7 @@ function renderAnalyzeCards(output: HTMLElement): void {
           <input type="checkbox" class="analyze-checkbox" ${item.checked ? 'checked' : ''} ${item.alreadySaved ? 'disabled' : ''}>
         </label>
         ${item.alreadySaved ? `<span class="already-saved-badge">已收藏</span>` : ''}
+        ${item.similarLabel && !item.alreadySaved ? `<span class="already-saved-badge" style="color:var(--warning);writing-mode:vertical-rl;transform:rotate(180deg)">相似</span>` : ''}
       </div>
       <div class="analyze-card-body">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:4px">
@@ -174,6 +184,10 @@ function renderAnalyzeCards(output: HTMLElement): void {
           <button class="btn-icon speak-btn" style="width:28px;height:28px;font-size:15px;flex-shrink:0" data-text="${esc(item.result.phrase)}">🔊</button>
         </div>
         <div style="font-size:14px;color:var(--text-secondary);margin-bottom:6px">${esc(item.result.translation)}</div>
+        ${item.similarLabel && !item.alreadySaved ? `
+          <div style="font-size:12px;padding:4px 8px;background:var(--warning-light);color:var(--warning);border-radius:var(--radius-sm);margin-bottom:6px">
+            ⚠️ ${esc(item.similarLabel)}
+          </div>` : ''}
         ${item.result.usageNotes ? `<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${esc(item.result.usageNotes)}</div>` : ''}
         ${item.result.alternativeExpressions.length ? `
           <div style="margin-top:6px">
@@ -227,10 +241,26 @@ function bindAnalyzeResultEvents(output: HTMLElement, _container: HTMLElement): 
     selectedMastery = (e.target as HTMLSelectElement).value as MasteryLevel;
   });
 
-  output.querySelector('#save-selected-btn')?.addEventListener('click', () => {
+  output.querySelector('#save-selected-btn')?.addEventListener('click', async () => {
     const toSave = items.filter((i) => i.checked && !i.alreadySaved);
     if (toSave.length === 0) return;
 
+    // Check for similar items in the selected batch
+    const similarItems = toSave.filter((i) => i.similarLabel);
+    if (similarItems.length > 0) {
+      // Collect all similars for a single dialog
+      const allSimilars = similarItems.flatMap((i) => findSimilarPhrases(i.result.phrase));
+      const uniqueSimilars = allSimilars.filter(
+        (s, idx, arr) => arr.findIndex((x) => x.item.id === s.item.id) === idx
+      );
+      const confirmed = await showSimilarPhraseDialog(
+        similarItems.map((i) => i.result.phrase).join('、'),
+        uniqueSimilars
+      );
+      if (!confirmed) return;
+    }
+
+    let savedCount = 0;
     toSave.forEach(({ result }) => {
       const item: ConversationItem = {
         id: `phrase_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -248,11 +278,12 @@ function bindAnalyzeResultEvents(output: HTMLElement, _container: HTMLElement): 
         createdAt: Date.now(),
       };
       addPhraseItem(item);
+      savedCount++;
       const i = items.find((x) => x.result.phrase === result.phrase);
-      if (i) i.alreadySaved = true;
+      if (i) { i.alreadySaved = true; i.similarLabel = null; }
     });
 
-    showToast(`已儲存 ${toSave.length} 個表達`, 'success');
+    showToast(`已儲存 ${savedCount} 個表達`, 'success');
     renderAnalyzeCards(output);
     updateCheckedCount(output);
   });

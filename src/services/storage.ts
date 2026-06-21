@@ -58,6 +58,58 @@ export function phraseExists(phrase: string): boolean {
   );
 }
 
+// ── Fuzzy similarity ──────────────────────────────────────
+export interface SimilarPhrase {
+  item: ConversationItem;
+  reason: string;
+}
+
+function normalizePhrase(phrase: string): string {
+  return phrase
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function jaccardSimilarity(a: string, b: string): number {
+  const wordsA = new Set(normalizePhrase(a).split(' ').filter((w) => w.length > 1));
+  const wordsB = new Set(normalizePhrase(b).split(' ').filter((w) => w.length > 1));
+  if (wordsA.size === 0 || wordsB.size === 0) return 0;
+  let intersection = 0;
+  wordsA.forEach((w) => { if (wordsB.has(w)) intersection++; });
+  return intersection / (wordsA.size + wordsB.size - intersection);
+}
+
+export function findSimilarPhrases(phrase: string): SimilarPhrase[] {
+  const normInput = normalizePhrase(phrase);
+  const results: SimilarPhrase[] = [];
+
+  for (const item of loadPhrases()) {
+    // Skip exact case-insensitive matches (already blocked by phraseExists)
+    if (item.phrase.toLowerCase() === phrase.toLowerCase()) continue;
+
+    const normItem = normalizePhrase(item.phrase);
+
+    // Normalized match: same after stripping punctuation/spaces
+    if (normInput === normItem) {
+      results.push({ item, reason: '標點或格式略有不同' });
+      continue;
+    }
+
+    // Jaccard word similarity ≥ 0.6 (skip single-word phrases)
+    const wordCount = normInput.split(' ').filter((w) => w.length > 1).length;
+    if (wordCount >= 2) {
+      const score = jaccardSimilarity(phrase, item.phrase);
+      if (score >= 0.6) {
+        results.push({ item, reason: `詞彙高度相似（${Math.round(score * 100)}%）` });
+      }
+    }
+  }
+
+  return results;
+}
+
 // ── Situation Packs ───────────────────────────────────────
 export function loadSituations(): SituationPack[] {
   try {

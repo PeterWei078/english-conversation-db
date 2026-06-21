@@ -4,12 +4,14 @@ import {
   loadSettings,
   addPhraseItem,
   phraseExists,
+  findSimilarPhrases,
   loadHistory,
   pushHistory,
   clearHistory,
 } from '../services/storage';
 import { speak } from '../services/speech';
 import { showToast } from '../components/toast';
+import { showSimilarPhraseDialog } from '../components/confirmDialog';
 import { renderDialogue } from '../components/dialogueDisplay';
 
 let throttleTimer: ReturnType<typeof setInterval> | null = null;
@@ -291,8 +293,16 @@ function renderLookupResult(
   output.querySelector('[data-level="unfamiliar"]')?.classList.add('ring-selected');
 
   // Save button
-  output.querySelector('#save-btn')?.addEventListener('click', () => {
+  output.querySelector('#save-btn')?.addEventListener('click', async () => {
     if (!currentResult) return;
+
+    // Fuzzy duplicate check
+    const similars = findSimilarPhrases(currentResult.phrase);
+    if (similars.length > 0) {
+      const confirmed = await showSimilarPhraseDialog(currentResult.phrase, similars);
+      if (!confirmed) return;
+    }
+
     const item: ConversationItem = {
       id: `phrase_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       phrase: currentResult.phrase,
@@ -314,8 +324,6 @@ function renderLookupResult(
     const saveBtn = output.querySelector<HTMLButtonElement>('#save-btn');
     if (saveBtn) { saveBtn.textContent = '✅ 已儲存'; saveBtn.disabled = true; }
 
-    // update panel
-    container.querySelector('#history-panel');
     refreshHistory(container);
   });
 }
