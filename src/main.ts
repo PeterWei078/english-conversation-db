@@ -81,6 +81,15 @@ function init(): void {
   initThemeToggle();
   window.addEventListener('hashchange', () => navigate(location.hash));
   navigate(location.hash || '#lookup');
+
+  // iOS Safari: force repaint after rotation so fixed elements regain touch events
+  window.addEventListener('orientationchange', () => {
+    setTimeout(() => {
+      document.documentElement.style.height = 'initial';
+      void document.documentElement.offsetHeight;
+      document.documentElement.style.height = '';
+    }, 150);
+  });
 }
 
 init();

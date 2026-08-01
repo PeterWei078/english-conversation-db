@@ -266,6 +266,59 @@
 .empty-state-text { font-size: 15px; margin-bottom: 8px; color: var(--text-secondary); }
 .empty-state-hint { font-size: 13px; }
 
+/* ── Mobile: bottom tab bar ── */
+
+/* GPU-promote the fixed nav to prevent iOS Safari touch-event loss after rotation */
+.nav-bar {
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+/* Portrait-only: move tabs to a fixed bottom bar */
+@media (max-width: 640px) and (orientation: portrait) {
+  .nav-bar { justify-content: space-between; }
+
+  .nav-tabs {
+    position: fixed;
+    inset: auto 0 0 0;
+    flex: none;
+    min-height: 56px;
+    padding: 4px 4px env(safe-area-inset-bottom, 0px);
+    background: var(--bg-card);
+    border-top: 1px solid var(--border);
+    justify-content: space-around;
+    gap: 0;
+    z-index: 200;
+    box-shadow: 0 -1px 8px rgb(0 0 0 / 0.08);
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+  }
+
+  .nav-tab {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 2px;
+    border-radius: 8px;
+    font-size: 10px;
+    gap: 3px;
+  }
+
+  .nav-tab-icon { font-size: 19px; }
+
+  /* Make room for the bottom nav */
+  .page-container {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 8px);
+  }
+}
+
+/* Landscape: add notch/home-indicator safe area to top nav */
+@media (orientation: landscape) and (max-height: 500px) {
+  .nav-bar {
+    padding-left:  max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+}
+
 /* ── Analyze cards ── */
 .analyze-toolbar {
   display: flex;
