@@ -12,7 +12,7 @@ function pickVoice(): SpeechSynthesisVoice | null {
   return (preferredVoice = anyUS ?? null);
 }
 
-export function speak(text: string, rate = 0.9): void {
+export function speak(text: string, rate = 1.1): void {
   if (!('speechSynthesis' in window)) return;
   speechSynthesis.cancel();
   const utter = new SpeechSynthesisUtterance(text);

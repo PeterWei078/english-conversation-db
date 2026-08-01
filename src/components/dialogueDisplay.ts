@@ -47,7 +47,7 @@ export function renderDialogue(dialogue: DialogueExample): HTMLElement {
     const btn = (e.target as HTMLElement).closest('.dialogue-speak-btn');
     if (btn) {
       const text = (btn as HTMLElement).dataset.text ?? '';
-      speak(text, 0.85);
+      speak(text);
     }
   });
 
