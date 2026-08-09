@@ -89,6 +89,13 @@ export interface GeminiSituationResult {
   tags: string[];
 }
 
+// ── Situation Category ──────────────────────────────────────
+export interface SituationCategory {
+  icon: string;
+  label: string;
+  query: string;
+}
+
 // ── App Settings ───────────────────────────────────────────
 export interface AppSettings {
   geminiApiKey: string;

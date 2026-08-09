@@ -1,41 +1,27 @@
-import type { GeminiSituationResult, SituationPack } from '../types/index';
+import type { GeminiSituationResult, SituationPack, SituationCategory } from '../types/index';
 import { searchSituation, ThrottleError } from '../services/ai';
-import { loadSettings, addSituationPack, loadSituations, deleteSituationPack, updateSituationPack } from '../services/storage';
+import {
+  loadSettings,
+  addSituationPack,
+  loadSituations,
+  deleteSituationPack,
+  updateSituationPack,
+  loadSituationCategories,
+  addSituationCategory,
+  deleteSituationCategory,
+} from '../services/storage';
 import { speak } from '../services/speech';
 import { showToast } from '../components/toast';
 import { renderDialogue } from '../components/dialogueDisplay';
 
-interface SituationCategory {
-  icon: string;
-  label: string;
-  query: string;
-}
-
-const CATEGORIES: SituationCategory[] = [
-  { icon: '✈️', label: '機場辦理',    query: '在機場辦理報到、過安檢、找登機門' },
-  { icon: '🛫', label: '飛機上',       query: '在飛機上與空服員溝通，詢問餐點、設備、協助' },
-  { icon: '🛂', label: '入境海關',     query: '入境海關申報與移民官員對話' },
-  { icon: '🏨', label: '飯店住宿',     query: '飯店辦理入住退房、詢問設施、提出要求' },
-  { icon: '🚕', label: '交通/計程車', query: '搭計程車、叫車、詢問路線、租車' },
-  { icon: '🗺️', label: '觀光問路',     query: '觀光景點問路、請人拍照、買門票' },
-  { icon: '🏪', label: '便利商店',     query: '在國外便利商店或超市購物結帳' },
-  { icon: '💊', label: '藥局/醫療',   query: '在藥局購藥或小診所看診，說明症狀' },
-  { icon: '☕', label: '咖啡廳',       query: '在咖啡廳點餐、客製化飲料、外帶' },
-  { icon: '🍽️', label: '餐廳用餐',    query: '在餐廳訂位、點餐、提出特殊需求、結帳' },
-  { icon: '🛍️', label: '購物',         query: '在服飾店或商店購物，詢問尺寸、退換貨' },
-  { icon: '🤝', label: '初次見面',     query: '初次認識、自我介紹、打破沉默的閒聊' },
-  { icon: '💬', label: '日常閒聊',     query: '日常閒聊、問候、談天氣與近況' },
-  { icon: '🎉', label: '派對聚會',     query: '參加派對或聚會，社交寒暄、祝賀' },
-  { icon: '💼', label: '職場溝通',     query: '職場日常溝通、開會發言、請假' },
-  { icon: '📧', label: '電話/視訊',   query: '電話接聽、轉接、留言、視訊會議開場' },
-  { icon: '🙏', label: '道歉/感謝',   query: '道歉、表達遺憾、感謝、接受感謝' },
-  { icon: '🎁', label: '祝賀/邀請',   query: '生日祝賀、節日問候、活動邀請' },
-];
-
+// User-editable list of categories (persisted in localStorage, seeded with defaults)
+let categories: SituationCategory[] = [];
 // null = show all; cat.label = specific category
 let currentFilter: string | null = null;
-// category label to assign when saving a newly generated pack (always one of 18)
-let generateCategory: string = CATEGORIES[0].label;
+// category label to assign when saving a newly generated pack
+let generateCategory: string = '';
+// whether the category grid shows delete affordances / the add-category form
+let categoryEditMode = false;
 let currentResult: GeminiSituationResult | null = null;
 
 function esc(s: string): string {
@@ -45,7 +31,9 @@ function esc(s: string): string {
 export function renderSituationPage(container: HTMLElement): void {
   currentResult = null;
   currentFilter = null;
-  generateCategory = CATEGORIES[0].label;
+  categoryEditMode = false;
+  categories = loadSituationCategories();
+  generateCategory = categories[0]?.label ?? '';
 
   container.innerHTML = `
     <div class="page">
@@ -56,7 +44,10 @@ export function renderSituationPage(container: HTMLElement): void {
 
       <!-- Category filter grid -->
       <div style="margin-bottom:20px">
-        <div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:12px">情境分類篩選</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="font-size:13px;font-weight:600;color:var(--text-secondary)">情境分類篩選</div>
+          <button id="category-edit-toggle" class="btn-icon" style="font-size:12px;width:auto;padding:4px 10px;color:var(--text-secondary)">⚙️ 管理分類</button>
+        </div>
         <div id="all-filter-row" style="margin-bottom:10px"></div>
         <div class="situation-categories" id="category-grid"></div>
       </div>
@@ -88,7 +79,7 @@ export function renderSituationPage(container: HTMLElement): void {
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <span style="font-size:13px;color:var(--text-secondary)">儲存至分類：</span>
             <select id="generate-category-select" class="select" style="width:auto;font-size:13px">
-              ${CATEGORIES.map((c) => `<option value="${esc(c.label)}"${generateCategory === c.label ? ' selected' : ''}>${c.icon} ${c.label}</option>`).join('')}
+              ${categories.map((c) => `<option value="${esc(c.label)}"${generateCategory === c.label ? ' selected' : ''}>${c.icon} ${c.label}</option>`).join('')}
             </select>
           </div>
         </div>
@@ -103,6 +94,11 @@ export function renderSituationPage(container: HTMLElement): void {
   renderCategoryGrid(container);
   renderPacksList(container);
   bindGenerateEvents(container);
+
+  container.querySelector('#category-edit-toggle')?.addEventListener('click', () => {
+    categoryEditMode = !categoryEditMode;
+    renderCategoryGrid(container);
+  });
 }
 
 // ── Filter chips ──────────────────────────────────────────
@@ -125,33 +121,152 @@ function renderAllFilterChip(container: HTMLElement): void {
 }
 
 function renderCategoryGrid(container: HTMLElement): void {
+  const toggle = container.querySelector<HTMLElement>('#category-edit-toggle');
+  if (toggle) {
+    toggle.textContent = categoryEditMode ? '✓ 完成' : '⚙️ 管理分類';
+    toggle.classList.toggle('active-toggle', categoryEditMode);
+  }
+
   const grid = container.querySelector<HTMLElement>('#category-grid')!;
   grid.innerHTML = '';
   const packs = loadSituations();
 
-  CATEGORIES.forEach((cat) => {
+  categories.forEach((cat) => {
     const count = packs.filter((p) => p.category === cat.label).length;
     const btn = document.createElement('button');
     btn.className = `situation-category-btn${currentFilter === cat.label ? ' active' : ''}`;
     btn.dataset.label = cat.label;
     btn.innerHTML = `
+      ${categoryEditMode ? `<span class="situation-category-delete" title="刪除分類">✕</span>` : ''}
       <span class="situation-category-icon">${cat.icon}</span>
       <span>${cat.label}</span>
       ${count > 0 ? `<span class="sit-count-badge">${count}</span>` : ''}
     `;
-    btn.addEventListener('click', () => {
-      currentFilter = cat.label;
-      generateCategory = cat.label;
-      // Sync generate section selects
-      const input = container.querySelector<HTMLInputElement>('#situation-input');
-      if (input && !input.value) input.value = cat.query;
-      const sel = container.querySelector<HTMLSelectElement>('#generate-category-select');
-      if (sel) sel.value = cat.label;
-      refreshFilters(container);
-      renderPacksList(container);
-    });
+
+    if (categoryEditMode) {
+      btn.querySelector('.situation-category-delete')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const msg = count > 0
+          ? `「${cat.label}」下還有 ${count} 個情境包，刪除分類後這些包會變成未分類。確定刪除？`
+          : `確定刪除分類「${cat.label}」？`;
+        if (!confirm(msg)) return;
+        deleteSituationCategory(cat.label);
+        categories = loadSituationCategories();
+        if (currentFilter === cat.label) currentFilter = null;
+        if (generateCategory === cat.label) generateCategory = categories[0]?.label ?? '';
+        refreshFilters(container);
+        renderPacksList(container);
+        syncGenerateCategorySelect(container);
+      });
+    } else {
+      btn.addEventListener('click', () => {
+        currentFilter = cat.label;
+        generateCategory = cat.label;
+        // Sync generate section selects
+        const input = container.querySelector<HTMLInputElement>('#situation-input');
+        if (input && !input.value) input.value = cat.query;
+        syncGenerateCategorySelect(container);
+        refreshFilters(container);
+        renderPacksList(container);
+      });
+    }
     grid.appendChild(btn);
   });
+
+  if (categoryEditMode) {
+    const addBtn = document.createElement('button');
+    addBtn.className = 'situation-category-btn situation-category-add';
+    addBtn.innerHTML = `<span class="situation-category-icon">＋</span><span>新增分類</span>`;
+    addBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openAddCategoryForm(addBtn, container);
+    });
+    grid.appendChild(addBtn);
+  }
+}
+
+function syncGenerateCategorySelect(container: HTMLElement): void {
+  const sel = container.querySelector<HTMLSelectElement>('#generate-category-select');
+  if (!sel) return;
+  sel.innerHTML = categories.map((c) =>
+    `<option value="${esc(c.label)}"${generateCategory === c.label ? ' selected' : ''}>${c.icon} ${c.label}</option>`
+  ).join('');
+}
+
+function openAddCategoryForm(anchor: HTMLElement, container: HTMLElement): void {
+  document.querySelectorAll('.cat-picker-popover').forEach((p) => p.remove());
+
+  const pop = document.createElement('div');
+  pop.className = 'cat-picker-popover category-add-popover';
+
+  const rect = anchor.getBoundingClientRect();
+  const popWidth = 220;
+  pop.style.cssText = `
+    position: fixed;
+    left: ${Math.min(rect.left, window.innerWidth - popWidth - 8)}px;
+    top: ${rect.bottom + 4}px;
+    width: ${popWidth}px;
+    z-index: 1000;
+  `;
+
+  pop.innerHTML = `
+    <input id="new-cat-icon" class="input" style="font-size:13px;padding:6px 8px" type="text" maxlength="4" placeholder="圖示 (例如 🏥)" autocomplete="off" />
+    <input id="new-cat-label" class="input" style="font-size:13px;padding:6px 8px;margin-top:6px" type="text" maxlength="12" placeholder="分類名稱" autocomplete="off" />
+    <div style="display:flex;gap:6px;margin-top:8px">
+      <button id="new-cat-save" class="btn btn-primary btn-sm" style="flex:1">新增</button>
+      <button id="new-cat-cancel" class="btn btn-secondary btn-sm" style="flex:1">取消</button>
+    </div>
+  `;
+
+  document.body.appendChild(pop);
+  pop.querySelector<HTMLInputElement>('#new-cat-label')?.focus();
+
+  const close = () => pop.remove();
+
+  const submit = () => {
+    const icon = pop.querySelector<HTMLInputElement>('#new-cat-icon')!.value.trim() || '📁';
+    const label = pop.querySelector<HTMLInputElement>('#new-cat-label')!.value.trim();
+    if (!label) {
+      showToast('請輸入分類名稱', 'warning');
+      return;
+    }
+    const ok = addSituationCategory({ icon, label, query: '' });
+    if (!ok) {
+      showToast('已有相同名稱的分類', 'warning');
+      return;
+    }
+    categories = loadSituationCategories();
+    close();
+    refreshFilters(container);
+    syncGenerateCategorySelect(container);
+    showToast(`已新增分類「${label}」`, 'success');
+  };
+
+  pop.querySelector('#new-cat-cancel')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    close();
+  });
+
+  pop.querySelector('#new-cat-save')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    submit();
+  });
+
+  pop.querySelectorAll('input').forEach((el) => {
+    el.addEventListener('keydown', (e) => {
+      if ((e as KeyboardEvent).key === 'Enter') submit();
+    });
+  });
+
+  pop.addEventListener('click', (e) => e.stopPropagation());
+
+  const outsideClick = (ev: MouseEvent) => {
+    if (!pop.contains(ev.target as Node) && ev.target !== anchor) {
+      close();
+      document.removeEventListener('click', outsideClick);
+    }
+  };
+  setTimeout(() => document.addEventListener('click', outsideClick), 0);
 }
 
 function refreshFilters(container: HTMLElement): void {
@@ -162,7 +277,9 @@ function refreshFilters(container: HTMLElement): void {
 
 // ── Packs list ────────────────────────────────────────────
 
-export const VALID_CATEGORIES = new Set(CATEGORIES.map((c) => c.label));
+function isValidCategory(label: string): boolean {
+  return categories.some((c) => c.label === label);
+}
 
 function renderPacksList(container: HTMLElement): void {
   const section = container.querySelector<HTMLElement>('#packs-section')!;
@@ -172,7 +289,7 @@ function renderPacksList(container: HTMLElement): void {
     : allPacks.filter((p) => p.category === currentFilter);
 
   const catMeta = currentFilter
-    ? CATEGORIES.find((c) => c.label === currentFilter)
+    ? categories.find((c) => c.label === currentFilter)
     : null;
 
   // Section header
@@ -215,7 +332,11 @@ function renderPacksList(container: HTMLElement): void {
       const sel = container.querySelector<HTMLSelectElement>('#generate-category-select')!;
       sel.value = catMeta.label;
       details.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      performGenerate(catMeta.query, container);
+      if (catMeta.query) {
+        performGenerate(catMeta.query, container);
+      } else {
+        input.focus();
+      }
     });
     return;
   }
@@ -230,12 +351,12 @@ function mountCategoryPicker(
   pack: SituationPack,
   container: HTMLElement
 ): void {
-  const isValid = VALID_CATEGORIES.has(pack.category);
-  const catMeta = CATEGORIES.find((c) => c.label === pack.category);
+  const isValid = isValidCategory(pack.category);
+  const catMeta = categories.find((c) => c.label === pack.category);
 
   const renderBtn = (currentCat: string) => {
     wrap.innerHTML = '';
-    const meta = CATEGORIES.find((c) => c.label === currentCat);
+    const meta = categories.find((c) => c.label === currentCat);
     const btn = document.createElement('button');
     btn.className = `cat-picker-btn ${meta ? 'categorized' : 'uncategorized'}`;
     btn.innerHTML = meta
@@ -268,7 +389,7 @@ function mountCategoryPicker(
         z-index: 1000;
       `;
 
-      CATEGORIES.forEach((cat) => {
+      categories.forEach((cat) => {
         const opt = document.createElement('button');
         opt.className = `cat-picker-option${currentCat === cat.label ? ' selected' : ''}`;
         opt.innerHTML = `<span>${cat.icon}</span><span>${cat.label}</span>`;
@@ -475,7 +596,7 @@ function renderGenerationResult(
   output: HTMLElement,
   container: HTMLElement
 ): void {
-  const catMeta = CATEGORIES.find((c) => c.label === generateCategory);
+  const catMeta = categories.find((c) => c.label === generateCategory);
   const categoryDisplay = catMeta
     ? `${catMeta.icon} ${catMeta.label}`
     : `📁 ${generateCategory}`;
