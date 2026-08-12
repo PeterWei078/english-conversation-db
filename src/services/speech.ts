@@ -13,7 +13,7 @@ function pickVoice(): SpeechSynthesisVoice | null {
   return (preferredVoice = anyUS ?? null);
 }
 
-export function speak(text: string, rate = 1.1): void {
+export function speak(text: string, rate = 0.9): void {
   if (!('speechSynthesis' in window)) return;
   activeSequence?.stop();
   activeSequence = null;
@@ -31,7 +31,7 @@ export function speak(text: string, rate = 1.1): void {
 // conversation rather than overlapping/cut-off single lines.
 export function speakSequence(
   texts: string[],
-  rate = 1.1,
+  rate = 0.9,
   onIndexChange?: (index: number) => void
 ): { promise: Promise<void>; stop: () => void } {
   if (!('speechSynthesis' in window)) {

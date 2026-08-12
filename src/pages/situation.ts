@@ -366,7 +366,7 @@ function buildPlayAllBar(
       return;
     }
     btn.textContent = '⏸ 停止播放';
-    const { promise, stop } = speakSequence(lines, 1.1, (index) => {
+    const { promise, stop } = speakSequence(lines, 0.9, (index) => {
       rows.forEach((r) => r.classList.remove('speaking'));
       if (index >= 0) {
         rows[index]?.classList.add('speaking');
