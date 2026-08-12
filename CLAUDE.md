@@ -21,10 +21,13 @@ No test runner is configured. Verify features manually via the dev server.
 **Persistence:** Everything in `localStorage` — no backend. [`src/services/storage.ts`](src/services/storage.ts) owns all reads/writes via typed key constants:
 - `phrase_collection` → `ConversationItem[]`
 - `situation_collection` → `SituationPack[]`
+- `situation_categories` → `SituationCategory[]` (user-editable, seeded from 18 defaults on first read — see below)
 - `settings` → `AppSettings`
 - `lookup_history` → `LookupHistoryItem[]` (capped at 20)
 
-**AI:** [`src/services/ai.ts`](src/services/ai.ts) calls Gemini 2.5 Flash directly from the browser. API key stored in localStorage settings. 3-second client-side throttle between calls (`THROTTLE_MS`). All three AI functions (`lookupPhrase`, `analyzeDialogue`, `searchSituation`) share a single `callGemini()` helper with `responseMimeType: 'application/json'`. Prompts embed `TAG_CONSTRAINT` from `src/constants/tags.ts` to restrict AI-generated tags to the predefined list.
+**AI:** [`src/services/ai.ts`](src/services/ai.ts) calls Gemini 2.5 Flash directly from the browser. API key stored in localStorage settings. 3-second client-side throttle between calls (`THROTTLE_MS`). Four AI functions — `lookupPhrase`, `analyzeDialogue`, `searchSituation`, `generateQuizHint` — share a single `callGemini()` helper with `responseMimeType: 'application/json'` (`generateQuizHint` returns plain text, not JSON). Prompts embed `TAG_CONSTRAINT` from `src/constants/tags.ts` to restrict AI-generated tags to the predefined list.
+
+**Speech:** [`src/services/speech.ts`](src/services/speech.ts) wraps the Web Speech API (`speechSynthesis`) for one-tap TTS playback of English phrases/vocab across `lookup`, `analyze`, `situation`, `collection`, and `quiz` pages. `pickVoice()` prefers a non-local `en-US` voice (e.g. Google's) over the OS default and caches the pick until the browser's `voiceschanged` event fires.
 
 **Tag system:** [`src/constants/tags.ts`](src/constants/tags.ts) is the single source of truth for the 24 allowed tags (grouped into 功能/場合/情境). `MAX_TAGS = 4`. Tags are enforced at three points: AI prompts, the tag editor UI (chip popover, not free text), and the cleanup function in settings. `mapLegacyTag()` maps old free-text tags to the predefined list during cleanup.
 
@@ -36,7 +39,7 @@ No test runner is configured. Verify features manually via the dev server.
 |------|------|-------------|
 | 查詢 | `pages/lookup.ts` | Single phrase lookup; async save handler checks similarity before `addPhraseItem` |
 | 分析 | `pages/analyze.ts` | Paste dialogue → batch extract; similar items get ⚠️ badge; batch save triggers single dialog if any similar |
-| 情境 | `pages/situation.ts` | 18 `CATEGORIES` are **filters** on saved `SituationPack`s (not search triggers). Generate section at bottom creates new packs. Category picker popover is mounted to `document.body` with `position:fixed` to escape parent `overflow:hidden` |
+| 情境 | `pages/situation.ts` | Categories (seeded with 18 defaults, user can add/delete more via `addSituationCategory`/`deleteSituationCategory`) are **filters** on saved `SituationPack`s (not search triggers). Generate section at bottom creates new packs. Category picker popover is mounted to `document.body` with `position:fixed` to escape parent `overflow:hidden` |
 | 收藏 | `pages/collection.ts` | Two tabs: phrase cards (`phrase_collection`) and situation packs (`situation_collection`). Tag filters grouped by `TAG_GROUPS` from constants |
 | 測驗 | `pages/quiz.ts` | Flashcard-only format. Setup screen filters by mastery/tag. Each card shows front (phrase), reveal shows translation + alternatives + dialogue. Three mastery buttons (不熟/尚可/熟悉) write directly to `updatePhraseItem`. Result screen shows % familiar as score |
 | 設定 | `pages/settings.ts` | API key, theme, export/import JSON, storage usage, tag cleanup (migrates `situationTags` → predefined `tags` via `mapLegacyTag`) |
@@ -53,6 +56,6 @@ No test runner is configured. Verify features manually via the dev server.
 ## Key design decisions
 
 - `situationTags` on `ConversationItem` is a legacy field — it's kept in the type for backward-compat but is always saved as `[]`. Only `tags` (from the predefined list) is used for filtering and display.
-- `SituationPack.category` must be one of the 18 `CATEGORIES[].label` values. Packs with `category = '自訂'` (old data) show as ⚠️ 未分類 and can be re-categorized via the inline picker.
+- `SituationPack.category` must match a `label` from the current `situation_categories` list (18 defaults + any user-added ones). Packs with `category = '自訂'` (old data) or a deleted category show as ⚠️ 未分類 and can be re-categorized via the inline picker.
 - Situation page phrases are **read-only** — they can only be saved as a complete pack, not as individual `ConversationItem`s. The phrase/analyze pages are the entry points for individual phrase saving.
 - CSS class names follow BEM-like flat pattern (`phrase-card`, `phrase-card-header`). Theme switching via `data-theme="dark"` on `<html>`. CSS custom properties in `src/styles/variables.css`.

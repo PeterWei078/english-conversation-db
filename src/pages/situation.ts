@@ -1,4 +1,4 @@
-import type { GeminiSituationResult, SituationPack, SituationCategory } from '../types/index';
+import type { GeminiSituationResult, SituationPack, SituationCategory, DialogueExample } from '../types/index';
 import { searchSituation, ThrottleError } from '../services/ai';
 import {
   loadSettings,
@@ -10,7 +10,7 @@ import {
   addSituationCategory,
   deleteSituationCategory,
 } from '../services/storage';
-import { speak } from '../services/speech';
+import { speak, speakSequence } from '../services/speech';
 import { showToast } from '../components/toast';
 import { renderDialogue } from '../components/dialogueDisplay';
 
@@ -346,6 +346,50 @@ function renderPacksList(container: HTMLElement): void {
   });
 }
 
+function buildPlayAllBar(
+  dialogue: DialogueExample,
+  dialogueEl: HTMLElement,
+  detailsEl: HTMLDetailsElement | null
+): HTMLElement {
+  const bar = document.createElement('div');
+  bar.className = 'dialogue-playall-bar';
+  bar.innerHTML = `<button type="button" class="btn btn-secondary btn-sm dialogue-playall-btn">▶ 連續播放對話</button>`;
+  const btn = bar.querySelector('.dialogue-playall-btn') as HTMLButtonElement;
+  const rows = Array.from(dialogueEl.querySelectorAll<HTMLElement>('.dialogue-row'));
+  const lines = dialogue.lines.map((l) => l.text);
+
+  let stopFn: (() => void) | null = null;
+
+  btn.addEventListener('click', () => {
+    if (stopFn) {
+      stopFn();
+      return;
+    }
+    btn.textContent = '⏸ 停止播放';
+    const { promise, stop } = speakSequence(lines, 1.1, (index) => {
+      rows.forEach((r) => r.classList.remove('speaking'));
+      if (index >= 0) {
+        rows[index]?.classList.add('speaking');
+        rows[index]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+    stopFn = stop;
+    promise.finally(() => {
+      stopFn = null;
+      btn.textContent = '▶ 連續播放對話';
+      rows.forEach((r) => r.classList.remove('speaking'));
+    });
+  });
+
+  // Collapsing the details panel while playing hides the stop button, so
+  // stop playback automatically instead of leaving it running invisibly.
+  detailsEl?.addEventListener('toggle', () => {
+    if (!detailsEl.open) stopFn?.();
+  });
+
+  return bar;
+}
+
 function mountCategoryPicker(
   wrap: HTMLElement,
   pack: SituationPack,
@@ -466,9 +510,14 @@ function renderPackCard(pack: SituationPack, container: HTMLElement): HTMLElemen
   mountCategoryPicker(catWrap, pack, container);
 
   // Lazy render dialogue
-  card.querySelector('details:first-of-type')?.addEventListener('toggle', () => {
+  const dialogueDetails = card.querySelector<HTMLDetailsElement>('details:first-of-type');
+  dialogueDetails?.addEventListener('toggle', () => {
     const el = card.querySelector<HTMLElement>(`#dlg-${pack.id}`)!;
-    if (el.children.length === 0) el.appendChild(renderDialogue(pack.sampleDialogue));
+    if (el.children.length === 0) {
+      const dialogueEl = renderDialogue(pack.sampleDialogue);
+      el.appendChild(buildPlayAllBar(pack.sampleDialogue, dialogueEl, dialogueDetails));
+      el.appendChild(dialogueEl);
+    }
   }, { once: true });
 
   // Lazy render key phrases
@@ -623,6 +672,7 @@ function renderGenerationResult(
       <div class="situation-pack-card" style="margin-bottom:16px">
         <div class="situation-pack-header">
           <span style="font-size:15px;font-weight:700">💬 情境對話範例</span>
+          <div id="dialogue-playall-slot"></div>
         </div>
         <div class="situation-pack-body" style="padding-top:16px">
           <div id="sample-dialogue"></div>
@@ -649,8 +699,11 @@ function renderGenerationResult(
     </div>
   `;
 
+  const sampleDialogueEl = renderDialogue(result.sampleDialogue);
+  output.querySelector<HTMLElement>('#dialogue-playall-slot')!
+    .appendChild(buildPlayAllBar(result.sampleDialogue, sampleDialogueEl, null));
   output.querySelector<HTMLElement>('#sample-dialogue')!
-    .appendChild(renderDialogue(result.sampleDialogue));
+    .appendChild(sampleDialogueEl);
 
   const phrasesList = output.querySelector<HTMLElement>('#key-phrases-list')!;
   result.keyPhrases.forEach((phrase) => {
