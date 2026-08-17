@@ -1,4 +1,4 @@
-import type { GeminiSituationResult, SituationPack, SituationCategory, DialogueExample } from '../types/index';
+import type { GeminiSituationResult, SituationPack, SituationCategory, DialogueExample, SituationProgressLevel } from '../types/index';
 import { searchSituation, ThrottleError } from '../services/ai';
 import {
   loadSettings,
@@ -18,8 +18,21 @@ import { renderDialogue } from '../components/dialogueDisplay';
 let categories: SituationCategory[] = [];
 // null = show all; cat.label = specific category
 let currentFilter: string | null = null;
+// null = show all; a level = only packs at that learning-progress level
+let currentStatusFilter: SituationProgressLevel | null = null;
 // category label to assign when saving a newly generated pack
 let generateCategory: string = '';
+
+const PROGRESS_LEVELS: { value: SituationProgressLevel; label: string; icon: string }[] = [
+  { value: 'unfamiliar', label: '不熟', icon: '🔴' },
+  { value: 'beginner',   label: '初學', icon: '🔵' },
+  { value: 'okay',       label: '尚可', icon: '🟡' },
+  { value: 'familiar',   label: '熟悉', icon: '🟢' },
+];
+
+function packProgress(pack: SituationPack): SituationProgressLevel {
+  return pack.progressLevel ?? 'unfamiliar';
+}
 // whether the category grid shows delete affordances / the add-category form
 let categoryEditMode = false;
 let currentResult: GeminiSituationResult | null = null;
@@ -31,6 +44,7 @@ function esc(s: string): string {
 export function renderSituationPage(container: HTMLElement): void {
   currentResult = null;
   currentFilter = null;
+  currentStatusFilter = null;
   categoryEditMode = false;
   categories = loadSituationCategories();
   generateCategory = categories[0]?.label ?? '';
@@ -48,7 +62,7 @@ export function renderSituationPage(container: HTMLElement): void {
           <div style="font-size:13px;font-weight:600;color:var(--text-secondary)">情境分類篩選</div>
           <button id="category-edit-toggle" class="btn-icon" style="font-size:12px;width:auto;padding:4px 10px;color:var(--text-secondary)">⚙️ 管理分類</button>
         </div>
-        <div id="all-filter-row" style="margin-bottom:10px"></div>
+        <div id="all-filter-row" style="margin-bottom:10px;display:flex;align-items:center;flex-wrap:wrap;gap:8px"></div>
         <div class="situation-categories" id="category-grid"></div>
       </div>
 
@@ -118,6 +132,24 @@ function renderAllFilterChip(container: HTMLElement): void {
     renderPacksList(container);
   });
   row.appendChild(allChip);
+
+  const divider = document.createElement('div');
+  divider.className = 'situation-status-filter-divider';
+  row.appendChild(divider);
+
+  const packs = loadSituations();
+  PROGRESS_LEVELS.forEach((level) => {
+    const count = packs.filter((p) => packProgress(p) === level.value).length;
+    const btn = document.createElement('button');
+    btn.className = `situation-status-filter-btn${currentStatusFilter === level.value ? ` active ${level.value}` : ''}`;
+    btn.innerHTML = `<span>${level.icon}</span><span>${level.label}</span><span class="sit-count-badge">${count}</span>`;
+    btn.addEventListener('click', () => {
+      currentStatusFilter = currentStatusFilter === level.value ? null : level.value;
+      refreshFilters(container);
+      renderPacksList(container);
+    });
+    row.appendChild(btn);
+  });
 }
 
 function renderCategoryGrid(container: HTMLElement): void {
@@ -284,18 +316,25 @@ function isValidCategory(label: string): boolean {
 function renderPacksList(container: HTMLElement): void {
   const section = container.querySelector<HTMLElement>('#packs-section')!;
   const allPacks = loadSituations();
-  const filtered = currentFilter === null
-    ? allPacks
-    : allPacks.filter((p) => p.category === currentFilter);
+  const filtered = allPacks.filter((p) =>
+    (currentFilter === null || p.category === currentFilter) &&
+    (currentStatusFilter === null || packProgress(p) === currentStatusFilter)
+  );
 
   const catMeta = currentFilter
     ? categories.find((c) => c.label === currentFilter)
     : null;
+  const statusMeta = currentStatusFilter
+    ? PROGRESS_LEVELS.find((l) => l.value === currentStatusFilter)
+    : null;
 
   // Section header
-  const filterLabel = currentFilter === null
-    ? `全部情境包（${allPacks.length}）`
-    : `${catMeta ? catMeta.icon + ' ' : ''}${currentFilter}（${filtered.length}）`;
+  const labelParts: string[] = [];
+  if (currentFilter !== null) labelParts.push(`${catMeta ? catMeta.icon + ' ' : ''}${currentFilter}`);
+  if (statusMeta) labelParts.push(`${statusMeta.icon} ${statusMeta.label}`);
+  const filterLabel = labelParts.length
+    ? `${labelParts.join(' · ')}（${filtered.length}）`
+    : `全部情境包（${allPacks.length}）`;
 
   section.innerHTML = `
     <div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:12px">${filterLabel}</div>
@@ -468,6 +507,35 @@ function mountCategoryPicker(
   renderBtn(isValid ? pack.category : (catMeta?.label ?? ''));
 }
 
+function mountProgressButtons(
+  wrap: HTMLElement,
+  pack: SituationPack,
+  container: HTMLElement
+): void {
+  const renderButtons = (current: SituationProgressLevel) => {
+    wrap.innerHTML = '';
+    PROGRESS_LEVELS.forEach((level) => {
+      const btn = document.createElement('button');
+      btn.className = `situation-progress-btn ${level.value}${current === level.value ? ' active' : ''}`;
+      btn.title = level.label;
+      btn.textContent = level.icon;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        updateSituationPack(pack.id, { progressLevel: level.value });
+        pack.progressLevel = level.value;
+        renderButtons(level.value);
+        refreshFilters(container);
+        if (currentStatusFilter !== null && currentStatusFilter !== level.value) {
+          renderPacksList(container);
+        }
+      });
+      wrap.appendChild(btn);
+    });
+  };
+
+  renderButtons(packProgress(pack));
+}
+
 function renderPackCard(pack: SituationPack, container: HTMLElement): HTMLElement {
   const card = document.createElement('div');
   card.className = 'situation-pack-card';
@@ -483,7 +551,8 @@ function renderPackCard(pack: SituationPack, container: HTMLElement): HTMLElemen
           <span style="font-size:12px;color:var(--text-muted)">${savedDate} · ${pack.keyPhrases.length} 個表達</span>
         </div>
       </div>
-      <div style="display:flex;gap:4px;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+        <div class="situation-progress-row" id="prog-${pack.id}"></div>
         <button class="btn-icon delete-pack-btn" title="刪除" style="font-size:16px">🗑️</button>
       </div>
     </div>
@@ -508,6 +577,10 @@ function renderPackCard(pack: SituationPack, container: HTMLElement): HTMLElemen
   // Mount category picker
   const catWrap = card.querySelector<HTMLElement>(`#cat-wrap-${pack.id}`)!;
   mountCategoryPicker(catWrap, pack, container);
+
+  // Mount progress toggle buttons
+  const progWrap = card.querySelector<HTMLElement>(`#prog-${pack.id}`)!;
+  mountProgressButtons(progWrap, pack, container);
 
   // Lazy render dialogue
   const dialogueDetails = card.querySelector<HTMLDetailsElement>('details:first-of-type');
@@ -781,6 +854,7 @@ function renderGenerationResult(
       vocabulary: currentResult.vocabulary,
       savedAt: Date.now(),
       tags: currentResult.tags,
+      progressLevel: 'unfamiliar',
     };
     addSituationPack(pack);
     showToast(`已儲存情境包到「${generateCategory}」`, 'success');

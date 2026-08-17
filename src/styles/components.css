@@ -666,6 +666,36 @@
 .mastery-vote-btn.okay       { background: var(--mastery-okay-light);       color: var(--mastery-okay);       border-color: var(--mastery-okay); }
 .mastery-vote-btn.familiar   { background: var(--mastery-familiar-light);   color: var(--mastery-familiar);   border-color: var(--mastery-familiar); }
 
+/* ── Situation pack progress toggle (card-level) ── */
+.situation-progress-row {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.situation-progress-btn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 12px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  border: 2px solid transparent;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: all 0.15s ease;
+}
+.situation-progress-btn:hover { opacity: 0.8; transform: translateY(-1px); }
+.situation-progress-btn.active { opacity: 1; box-shadow: var(--shadow-sm); }
+.situation-progress-btn.unfamiliar.active { background: var(--mastery-unfamiliar-light); border-color: var(--mastery-unfamiliar); }
+.situation-progress-btn.beginner.active   { background: var(--mastery-beginner-light);   border-color: var(--mastery-beginner); }
+.situation-progress-btn.okay.active       { background: var(--mastery-okay-light);       border-color: var(--mastery-okay); }
+.situation-progress-btn.familiar.active   { background: var(--mastery-familiar-light);   border-color: var(--mastery-familiar); }
+
 /* ── Quiz result ── */
 .quiz-result-card {
   text-align: center;

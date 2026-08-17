@@ -1,4 +1,5 @@
 export type MasteryLevel = 'unfamiliar' | 'okay' | 'familiar';
+export type SituationProgressLevel = 'unfamiliar' | 'beginner' | 'okay' | 'familiar';
 export type FormalityLevel = 'formal' | 'informal' | 'neutral';
 export type ConversationItemType = 'phrase' | 'idiom' | 'expression' | 'sentence_pattern';
 export type Theme = 'light' | 'dark' | 'auto';
@@ -65,6 +66,7 @@ export interface SituationPack {
   vocabulary?: VocabularyItem[];
   savedAt: number;
   tags: string[];
+  progressLevel?: SituationProgressLevel;
 }
 
 // ── AI Result Types ────────────────────────────────────────

@@ -154,6 +154,37 @@
 }
 .situation-category-icon { font-size: 24px; line-height: 1; }
 
+/* ── Situation status filter row ── */
+.situation-status-filter-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border);
+  margin: 2px 2px;
+}
+
+.situation-status-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+}
+.situation-status-filter-btn:hover {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  color: var(--accent-text);
+}
+.situation-status-filter-btn.active.unfamiliar { border-color: var(--mastery-unfamiliar); background: var(--mastery-unfamiliar-light); color: var(--mastery-unfamiliar); }
+.situation-status-filter-btn.active.beginner   { border-color: var(--mastery-beginner);   background: var(--mastery-beginner-light);   color: var(--mastery-beginner); }
+.situation-status-filter-btn.active.okay       { border-color: var(--mastery-okay);       background: var(--mastery-okay-light);       color: var(--mastery-okay); }
+.situation-status-filter-btn.active.familiar   { border-color: var(--mastery-familiar);   background: var(--mastery-familiar-light);   color: var(--mastery-familiar); }
+
 .situation-category-delete {
   position: absolute;
   top: -6px;
